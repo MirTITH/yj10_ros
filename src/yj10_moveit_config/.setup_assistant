@@ -1,0 +1,11 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: yj10_description
+    relative_path: urdf/yj10.urdf
+    xacro_args: ""
+  SRDF:
+    relative_path: config/yj10.srdf
+  CONFIG:
+    author_name: xy
+    author_email: 1023515576@qq.com
+    generated_timestamp: 1682522414
