@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
     spinner.start();
 
     // Create the hardware interface specific to your robot
-    std::shared_ptr<yj10_control_ns::Yj10HWInterface> yj10_hw_interface_instance(new yj10_control_ns::Yj10HWInterface(nh));
+    std::shared_ptr<yj10_control::Yj10HWInterface> yj10_hw_interface_instance(new yj10_control::Yj10HWInterface(nh));
     yj10_hw_interface_instance->init(); // size and register required interfaces inside generic_hw_interface.cpp
 
     // Start the control loop
