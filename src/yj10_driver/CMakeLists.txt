@@ -8,12 +8,10 @@ project(yj10_driver)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  message_generation
   cmake_modules
   hardware_interface
   controller_manager
   roscpp
-  control_msgs
   urdf
   std_msgs
   ros_control_boilerplate
@@ -111,7 +109,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES yj10_driver
- CATKIN_DEPENDS message_runtime
+#  CATKIN_DEPENDS message_runtime
 #  DEPENDS system_lib
 )
 
