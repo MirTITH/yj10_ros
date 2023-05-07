@@ -28,7 +28,7 @@ void Yj10HWInterface::read(ros::Duration &elapsed_time)
             }
             catch (const std::exception &e)
             {
-                ROS_ERROR_STREAM("Read failed. e.what()=" << e.what());
+                ROS_ERROR_STREAM("Read failed. what(): " << e.what());
             }
         }
     }
@@ -67,7 +67,7 @@ void Yj10HWInterface::write(ros::Duration &elapsed_time)
             }
             catch (const std::exception &e)
             {
-                ROS_ERROR_STREAM("Write failed. e.what()=" << e.what());
+                ROS_ERROR_STREAM("Write failed. what(): " << e.what());
             }
         }
     }
