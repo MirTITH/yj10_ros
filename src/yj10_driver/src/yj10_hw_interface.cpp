@@ -13,20 +13,23 @@ void Yj10HWInterface::read(ros::Duration &elapsed_time)
         return;
     }
 
-    // 如果失败，就多尝试几次
-    for (size_t i = 0; i < read_retry_time; i++)
+    if (is_connected)
     {
-        try
+        // 如果失败，就多尝试几次
+        for (size_t i = 0; i < read_retry_time; i++)
         {
-            arm.ReadAllJointsPwm();
-            for (size_t i = 0; i < num_joints_; i++)
+            try
             {
-                joint_position_.at(i) = arm.JointRad(i);
+                arm.ReadAllJointsPwm();
+                for (size_t i = 0; i < num_joints_; i++)
+                {
+                    joint_position_.at(i) = arm.JointRad(i);
+                }
             }
-        }
-        catch (const std::exception &e)
-        {
-            ROS_ERROR_STREAM("Read failed. e.what()=" << e.what());
+            catch (const std::exception &e)
+            {
+                ROS_ERROR_STREAM("Read failed. e.what()=" << e.what());
+            }
         }
     }
 }
@@ -45,24 +48,27 @@ void Yj10HWInterface::write(ros::Duration &elapsed_time)
         return;
     }
 
-    std::array<double, 5> rads;
-
-    for (size_t i = 0; i < rads.size(); i++)
+    if (is_connected)
     {
-        rads.at(i) = joint_position_command_.at(i);
-    }
+        std::array<double, 5> rads;
 
-    // 如果写入失败，就多尝试几次
-    for (size_t i = 0; i < write_retry_time; i++)
-    {
-        try
+        for (size_t i = 0; i < rads.size(); i++)
         {
-            arm.WriteAllJointsRad(rads);
-            break;
+            rads.at(i) = joint_position_command_.at(i);
         }
-        catch (const std::exception &e)
+
+        // 如果写入失败，就多尝试几次
+        for (size_t i = 0; i < write_retry_time; i++)
         {
-            ROS_ERROR_STREAM("Write failed. e.what()=" << e.what());
+            try
+            {
+                arm.WriteAllJointsRad(rads);
+                break;
+            }
+            catch (const std::exception &e)
+            {
+                ROS_ERROR_STREAM("Write failed. e.what()=" << e.what());
+            }
         }
     }
 }
