@@ -125,7 +125,7 @@ void Yj10::ResetPose()
         {
             cerr << "ResetPose failed: " << e.what() << ". Retrying..." << endl;
             has_retried = true;
-            this_thread::sleep_for(0.5s);
+            this_thread::sleep_for(chrono::milliseconds(500));
         }
     }
 }

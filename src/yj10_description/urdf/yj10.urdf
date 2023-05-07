@@ -61,7 +61,7 @@ Stephen Brawner (brawner@gmail.com)
         <parent link="base_link" />
         <child link="link1" />
         <axis xyz="0 0 -1" />
-        <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.2" />
+        <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.4" />
     </joint>
     <link name="link2">
         <inertial>
@@ -91,7 +91,7 @@ Stephen Brawner (brawner@gmail.com)
         <parent link="link1" />
         <child link="link2" />
         <axis xyz="-1 0 0" />
-        <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.2" />
+        <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.4" />
     </joint>
     <link name="link3">
         <inertial>
@@ -121,7 +121,7 @@ Stephen Brawner (brawner@gmail.com)
         <parent link="link2" />
         <child link="link3" />
         <axis xyz="1 0 0" />
-        <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.2" />
+        <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.4" />
     </joint>
     <link name="link4">
         <inertial>
@@ -151,7 +151,7 @@ Stephen Brawner (brawner@gmail.com)
         <parent link="link3" />
         <child link="link4" />
         <axis xyz="-1 0 0" />
-        <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.2" />
+        <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.4" />
     </joint>
     <link name="link5">
         <inertial>
@@ -181,7 +181,7 @@ Stephen Brawner (brawner@gmail.com)
         <parent link="link4" />
         <child link="link5" />
         <axis xyz="0 -1 0" />
-        <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.2" />
+        <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.4" />
     </joint>
 
     <!-- For Gazebo -->
