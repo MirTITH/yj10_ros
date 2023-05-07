@@ -179,11 +179,21 @@ public:
         }
     }
 
+    /**
+     * @brief 一个关节的 Rad 值，读取前需要使用 ReadAllJointsPwm() 更新
+     *
+     * @param index 范围 [0,4]（index = 5在该型号中没有）
+     */
     double JointRad(int index) const
     {
         return PwmToRad(Joint(index));
     }
 
+    /**
+     * @brief 一个关节的 Deg 值，读取前需要使用 ReadAllJointsPwm() 更新
+     *
+     * @param index 范围 [0,4]（index = 5在该型号中没有）
+     */
     double JointDeg(int index) const
     {
         return PwmToDeg(Joint(index));
@@ -203,6 +213,10 @@ public:
         return result;
     }
 
+    /**
+     * @brief 各个关节的 Rad 值，读取前需要使用 ReadAllJointsPwm() 更新
+     *
+     */
     std::array<double, 5> JointsRad() const
     {
         std::array<double, 5> result;
@@ -213,6 +227,10 @@ public:
         return result;
     }
 
+    /**
+     * @brief 各个关节的 Deg 值，读取前需要使用 ReadAllJointsPwm() 更新
+     *
+     */
     std::array<double, 5> JointsDeg() const
     {
         std::array<double, 5> result;

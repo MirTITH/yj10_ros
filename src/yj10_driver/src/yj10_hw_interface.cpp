@@ -8,17 +8,26 @@ Yj10HWInterface::Yj10HWInterface(ros::NodeHandle &nh, urdf::Model *urdf_model)
 
 void Yj10HWInterface::read(ros::Duration &elapsed_time)
 {
-    try
+    if (is_fake_connect)
     {
-        arm.ReadAllJointsPwm();
-        for (size_t i = 0; i < num_joints_; i++)
-        {
-            joint_position_.at(i) = arm.JointRad(i);
-        }
+        return;
     }
-    catch (const std::exception &e)
+
+    // 如果失败，就多尝试几次
+    for (size_t i = 0; i < read_retry_time; i++)
     {
-        ROS_ERROR_STREAM(e.what());
+        try
+        {
+            arm.ReadAllJointsPwm();
+            for (size_t i = 0; i < num_joints_; i++)
+            {
+                joint_position_.at(i) = arm.JointRad(i);
+            }
+        }
+        catch (const std::exception &e)
+        {
+            ROS_ERROR_STREAM("Read failed. e.what()=" << e.what());
+        }
     }
 }
 
@@ -26,6 +35,15 @@ void Yj10HWInterface::write(ros::Duration &elapsed_time)
 {
     // Safety
     enforceLimits(elapsed_time);
+
+    if (is_fake_connect)
+    {
+        for (size_t i = 0; i < num_joints_; i++)
+        {
+            joint_position_.at(i) = joint_position_command_.at(i);
+        }
+        return;
+    }
 
     std::array<double, 5> rads;
 
@@ -35,7 +53,7 @@ void Yj10HWInterface::write(ros::Duration &elapsed_time)
     }
 
     // 如果写入失败，就多尝试几次
-    for (size_t i = 0; i < 3; i++)
+    for (size_t i = 0; i < write_retry_time; i++)
     {
         try
         {
@@ -44,14 +62,9 @@ void Yj10HWInterface::write(ros::Duration &elapsed_time)
         }
         catch (const std::exception &e)
         {
-            ROS_ERROR_STREAM(e.what());
+            ROS_ERROR_STREAM("Write failed. e.what()=" << e.what());
         }
     }
-
-    // // DUMMY PASS-THROUGH CODE
-    // for (std::size_t joint_id = 0; joint_id < num_joints_; ++joint_id)
-    //     joint_position_[joint_id] = joint_position_command_[joint_id];
-    // // END DUMMY CODE
 }
 
 void Yj10HWInterface::enforceLimits(ros::Duration &period)

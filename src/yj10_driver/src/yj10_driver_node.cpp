@@ -14,16 +14,41 @@ int main(int argc, char *argv[])
 
     // Create the hardware interface specific to your robot
     std::shared_ptr<Yj10HWInterface> yj10_hw_interface_instance(new Yj10HWInterface(nh));
-    while (ros::ok())
+
+    std::string device;
+
+    bool is_fake_connect = false;
+
+    nh.param("yj10_connection/fake_connect", is_fake_connect, false);
+
+    if (is_fake_connect)
     {
-        try
+        yj10_hw_interface_instance->is_fake_connect = true;
+        ROS_WARN_STREAM("yj10_connection/fake_connect is set to true. Use fake connect");
+    }
+    else
+    {
+        if (nh.getParam("yj10_connection/serial_device", device) == false)
         {
-            yj10_hw_interface_instance->arm.Connect("/dev/ttyUSB0");
+            ROS_ERROR_STREAM("Failed to get 'yj10_connection/serial_device' in param server.");
+            return 1;
         }
-        catch (const std::exception &e)
+        else
         {
-            ROS_ERROR_STREAM("Failed to connect with YJ10 arm. Retrying...");
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            ROS_INFO_STREAM("Read yj10_connection/serial_device from param server:" << device);
+        }
+
+        while (ros::ok())
+        {
+            try
+            {
+                yj10_hw_interface_instance->arm.Connect(device);
+            }
+            catch (const std::exception &e)
+            {
+                ROS_ERROR_STREAM("Failed to connect to YJ10 arm. Device:[" << device << "] Retrying...");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            }
         }
     }
 

@@ -7,7 +7,12 @@
 /// \brief Hardware interface for a robot
 class Yj10HWInterface : public ros_control_boilerplate::GenericHWInterface
 {
+private:
+    int read_retry_time = 0;
+    int write_retry_time = 3;
+
 public:
+    volatile bool is_fake_connect = false;
     /**
      * @brief Construct a new Yj10 hardware interface
      *
