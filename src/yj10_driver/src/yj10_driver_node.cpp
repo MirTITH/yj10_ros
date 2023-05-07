@@ -1,5 +1,6 @@
 #include "yj10_driver/yj10_hw_interface.h"
 #include <ros_control_boilerplate/generic_hw_control_loop.h>
+#include <thread>
 
 int main(int argc, char *argv[])
 {
@@ -13,6 +14,19 @@ int main(int argc, char *argv[])
 
     // Create the hardware interface specific to your robot
     std::shared_ptr<Yj10HWInterface> yj10_hw_interface_instance(new Yj10HWInterface(nh));
+    while (ros::ok())
+    {
+        try
+        {
+            yj10_hw_interface_instance->arm.Connect("/dev/ttyUSB0");
+        }
+        catch (const std::exception &e)
+        {
+            ROS_ERROR_STREAM("Failed to connect with YJ10 arm. Retrying...");
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        }
+    }
+
     yj10_hw_interface_instance->init(); // size and register required interfaces inside generic_hw_interface.cpp
 
     // Start the control loop

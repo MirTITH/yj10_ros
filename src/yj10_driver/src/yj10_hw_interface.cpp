@@ -8,17 +8,18 @@ Yj10HWInterface::Yj10HWInterface(ros::NodeHandle &nh, urdf::Model *urdf_model)
 
 void Yj10HWInterface::read(ros::Duration &elapsed_time)
 {
-    // ----------------------------------------------------
-    // ----------------------------------------------------
-    // ----------------------------------------------------
-    //
-    // FILL IN YOUR READ COMMAND FROM USB/ETHERNET/ETHERCAT/SERIAL ETC HERE
-    //
-    // ----------------------------------------------------
-    // ----------------------------------------------------
-    // ----------------------------------------------------
-
-    // ROS_INFO("Called read. ");
+    try
+    {
+        arm.ReadAllJointsPwm();
+        for (size_t i = 0; i < num_joints_; i++)
+        {
+            joint_position_.at(i) = arm.JointRad(i);
+        }
+    }
+    catch (const std::exception &e)
+    {
+        ROS_ERROR_STREAM(e.what());
+    }
 }
 
 void Yj10HWInterface::write(ros::Duration &elapsed_time)
@@ -26,24 +27,31 @@ void Yj10HWInterface::write(ros::Duration &elapsed_time)
     // Safety
     enforceLimits(elapsed_time);
 
-    // ----------------------------------------------------
-    // ----------------------------------------------------
-    // ----------------------------------------------------
-    //
-    // FILL IN YOUR WRITE COMMAND TO USB/ETHERNET/ETHERCAT/SERIAL ETC HERE
-    //
-    // FOR A EASY SIMULATION EXAMPLE, OR FOR CODE TO CALCULATE
-    // VELOCITY FROM POSITION WITH SMOOTHING, SEE
-    // sim_hw_interface.cpp IN THIS PACKAGE
-    //
-    // DUMMY PASS-THROUGH CODE
-    for (std::size_t joint_id = 0; joint_id < num_joints_; ++joint_id)
-        joint_position_[joint_id] = joint_position_command_[joint_id];
-    // END DUMMY CODE
-    //
-    // ----------------------------------------------------
-    // ----------------------------------------------------
-    // ----------------------------------------------------
+    std::array<double, 5> rads;
+
+    for (size_t i = 0; i < rads.size(); i++)
+    {
+        rads.at(i) = joint_position_command_.at(i);
+    }
+
+    // 如果写入失败，就多尝试几次
+    for (size_t i = 0; i < 3; i++)
+    {
+        try
+        {
+            arm.WriteAllJointsRad(rads);
+            break;
+        }
+        catch (const std::exception &e)
+        {
+            ROS_ERROR_STREAM(e.what());
+        }
+    }
+
+    // // DUMMY PASS-THROUGH CODE
+    // for (std::size_t joint_id = 0; joint_id < num_joints_; ++joint_id)
+    //     joint_position_[joint_id] = joint_position_command_[joint_id];
+    // // END DUMMY CODE
 }
 
 void Yj10HWInterface::enforceLimits(ros::Duration &period)
