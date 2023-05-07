@@ -2,14 +2,12 @@
 #pragma once
 
 #include <ros_control_boilerplate/generic_hw_interface.h>
+#include "yj10_driver/yj10.hpp"
 
-namespace yj10_control
+/// \brief Hardware interface for a robot
+class Yj10HWInterface : public ros_control_boilerplate::GenericHWInterface
 {
-  /// \brief Hardware interface for a robot
-  class Yj10HWInterface : public ros_control_boilerplate::GenericHWInterface
-  {
-
-  public:
+public:
     /**
      * @brief Construct a new Yj10 hardware interface
      *
@@ -35,5 +33,6 @@ namespace yj10_control
      * @note REQUIRED or wont compile.
      */
     virtual void enforceLimits(ros::Duration &period) override;
-  }; // class
-} // namespace
+
+    Yj10 arm;
+}; // class
