@@ -43,8 +43,8 @@ void ForwardKinematics(moveit::planning_interface::MoveGroupInterface &arm)
     // 设置机械臂运动的允许误差
     arm.setGoalJointTolerance(0.001);
     // 设置允许的最大速度和加速度
-    arm.setMaxAccelerationScalingFactor(0.5);
-    arm.setMaxVelocityScalingFactor(0.4);
+    // arm.setMaxAccelerationScalingFactor(0.5);
+    // arm.setMaxVelocityScalingFactor(0.4);
 
     // 控制机械臂先回到初始化位置
     arm.setNamedTarget("fold");

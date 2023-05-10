@@ -31,6 +31,7 @@ Yj10::ClamperState Yj10::Clamper() const
 void Yj10::ThrowException()
 {
     auto str_err = modbus_strerror(errno);
+    errno = 0;
     throw runtime_error(str_err);
 }
 

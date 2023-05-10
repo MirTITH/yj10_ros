@@ -9,7 +9,6 @@ class Yj10HWInterface : public ros_control_boilerplate::GenericHWInterface
 {
 private:
     int read_retry_time = 0;
-    int write_retry_time = 3;
     volatile bool is_connected = false;
     Yj10 arm;
 
