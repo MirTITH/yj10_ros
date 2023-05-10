@@ -88,8 +88,8 @@ void Yj10::Connect(const std::string device, int device_id, int baud, char parit
 
     // 设置超时时间
     modbus_set_response_timeout(mb, 0, 100);
-    // modbus_set_indication_timeout(mb, 3, 0);
-    // modbus_set_byte_timeout(mb, 3, 0);
+    // modbus_set_indication_timeout(mb, 1, 0);
+    modbus_set_byte_timeout(mb, 0, 10);
 
 #ifdef DEBUG
     modbus_set_debug(mb, true);
@@ -196,6 +196,12 @@ void Yj10::WriteAllJointsRad(std::array<double, 5> rads)
 void Yj10::WriteAllJointsRad(std::vector<double> rads)
 {
     std::array<uint16_t, 5> pwms;
+    int size = 5;
+    if (rads.size() < size)
+    {
+        size = rads.size();
+    }
+
     for (size_t i = 0; i < pwms.size(); i++)
     {
         pwms.at(i) = RadToPwm(rads.at(i));

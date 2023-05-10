@@ -2,18 +2,67 @@
 #include <ros_control_boilerplate/generic_hw_control_loop.h>
 #include <thread>
 #include <std_srvs/Empty.h>
+#include <std_srvs/Trigger.h>
+
+using namespace std;
+
+std::shared_ptr<Yj10HWInterface> yj10_hw_interface_instance;
 
 static bool handle_close_clamp(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {
     ROS_INFO("Closing clamp");
-    // do something
+    yj10_hw_interface_instance->WriteClamperInstruction(Yj10::ClamperState::Close);
+
+    return true;
+}
+
+static bool handle_stop_clamp(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+    ROS_INFO("Stoping clamp");
+    yj10_hw_interface_instance->WriteClamperInstruction(Yj10::ClamperState::Stop);
+
     return true;
 }
 
 static bool handle_open_clamp(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {
     ROS_INFO("Opening clamp");
-    // do something
+    yj10_hw_interface_instance->WriteClamperInstruction(Yj10::ClamperState::Open);
+    return true;
+}
+
+static bool handle_get_clamp_state(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
+{
+    yj10_hw_interface_instance->ReadClamper();
+    auto state = yj10_hw_interface_instance->GetClamperState();
+    switch (state)
+    {
+    case Yj10::ClamperState::Close:
+        res.message = "Close";
+        res.success = true;
+        break;
+    case Yj10::ClamperState::Error:
+        res.message = "Error";
+        res.success = true;
+        break;
+    case Yj10::ClamperState::Middle:
+        res.message = "Middle";
+        res.success = true;
+        break;
+    case Yj10::ClamperState::Open:
+        res.message = "Open";
+        res.success = true;
+        break;
+    case Yj10::ClamperState::Stop:
+        res.message = "Stop";
+        res.success = true;
+        break;
+
+    default:
+        res.message = "Unknown";
+        res.success = false;
+        break;
+    }
     return true;
 }
 
@@ -23,8 +72,10 @@ int main(int argc, char *argv[])
     ros::NodeHandle nh;
 
     // 夹爪服务
-    ros::ServiceServer close_clamp_server = nh.advertiseService("close_clamp", handle_close_clamp);
-    ros::ServiceServer open_clamp_server = nh.advertiseService("open_clamp", handle_open_clamp);
+    auto s1 = nh.advertiseService("close_clamp", handle_close_clamp);
+    auto s2 = nh.advertiseService("open_clamp", handle_open_clamp);
+    auto s3 = nh.advertiseService("stop_clamp", handle_stop_clamp);
+    auto s4 = nh.advertiseService("get_clamp_state", handle_get_clamp_state);
 
     // NOTE: We run the ROS loop in a separate thread as external calls s   uch
     // as service callbacks to load controllers can block the (main) control loop
@@ -32,7 +83,7 @@ int main(int argc, char *argv[])
     spinner.start();
 
     // Create the hardware interface specific to your robot
-    std::shared_ptr<Yj10HWInterface> yj10_hw_interface_instance(new Yj10HWInterface(nh));
+    yj10_hw_interface_instance.reset(new Yj10HWInterface(nh));
 
     yj10_hw_interface_instance->init(); // size and register required interfaces inside generic_hw_interface.cpp
 
