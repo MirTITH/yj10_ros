@@ -278,8 +278,8 @@ int main(int argc, char **argv) // 主函数
     arm.allowReplanning(true);
 
     // 设置位置(单位：米)和姿态（单位：弧度）的允许误差
-    arm.setGoalPositionTolerance(0.01);
-    arm.setGoalOrientationTolerance(0.1);
+    arm.setGoalPositionTolerance(0.001);
+    arm.setGoalOrientationTolerance(0.005);
 
     // 设置允许的最大速度和加速度
     // arm.setMaxVelocityScalingFactor(0.4);

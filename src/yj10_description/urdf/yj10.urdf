@@ -90,7 +90,7 @@ Stephen Brawner (brawner@gmail.com)
         <origin xyz="0.038998 -0.00037619 0.093" rpy="0 0 0" />
         <parent link="link1" />
         <child link="link2" />
-        <axis xyz="-1 0 0" />
+        <axis xyz="-0.99995 0.009646 0" />
         <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.57" />
     </joint>
     <link name="link3">
@@ -120,7 +120,7 @@ Stephen Brawner (brawner@gmail.com)
         <origin xyz="0.0049998 -4.823E-05 0.6" rpy="0 0 0" />
         <parent link="link2" />
         <child link="link3" />
-        <axis xyz="1 0 0" />
+        <axis xyz="0.99995 -0.009646 0" />
         <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.57" />
     </joint>
     <link name="link4">
@@ -150,7 +150,7 @@ Stephen Brawner (brawner@gmail.com)
         <origin xyz="0.014287 0.59989 0" rpy="0 0 0" />
         <parent link="link3" />
         <child link="link4" />
-        <axis xyz="-1 0 0" />
+        <axis xyz="-0.99995 0.009646 0" />
         <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.57" />
     </joint>
     <link name="link5">
@@ -180,7 +180,7 @@ Stephen Brawner (brawner@gmail.com)
         <origin xyz="0.041038 0.055577 0" rpy="0 0 0" />
         <parent link="link4" />
         <child link="link5" />
-        <axis xyz="0 -1 0" />
+        <axis xyz="-0.009646 -0.99995 0" />
         <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.57" />
     </joint>
 
