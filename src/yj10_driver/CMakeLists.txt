@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   urdf
   std_msgs
+  std_srvs
   ros_control_boilerplate
 )
 

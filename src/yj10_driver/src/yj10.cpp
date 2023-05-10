@@ -192,3 +192,13 @@ void Yj10::WriteAllJointsRad(std::array<double, 5> rads)
     }
     WriteAllJoints(pwms);
 }
+
+void Yj10::WriteAllJointsRad(std::vector<double> rads)
+{
+    std::array<uint16_t, 5> pwms;
+    for (size_t i = 0; i < pwms.size(); i++)
+    {
+        pwms.at(i) = RadToPwm(rads.at(i));
+    }
+    WriteAllJoints(pwms);
+}

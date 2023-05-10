@@ -1,13 +1,32 @@
 #include "yj10_driver/yj10_hw_interface.h"
 #include <ros_control_boilerplate/generic_hw_control_loop.h>
 #include <thread>
+#include <std_srvs/Empty.h>
+
+static bool handle_close_clamp(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+    ROS_INFO("Closing clamp");
+    // do something
+    return true;
+}
+
+static bool handle_open_clamp(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+    ROS_INFO("Opening clamp");
+    // do something
+    return true;
+}
 
 int main(int argc, char *argv[])
 {
     ros::init(argc, argv, "yj10_hw_interface");
     ros::NodeHandle nh;
 
-    // NOTE: We run the ROS loop in a separate thread as external calls such
+    // 夹爪服务
+    ros::ServiceServer close_clamp_server = nh.advertiseService("close_clamp", handle_close_clamp);
+    ros::ServiceServer open_clamp_server = nh.advertiseService("open_clamp", handle_open_clamp);
+
+    // NOTE: We run the ROS loop in a separate thread as external calls s   uch
     // as service callbacks to load controllers can block the (main) control loop
     ros::AsyncSpinner spinner(3);
     spinner.start();

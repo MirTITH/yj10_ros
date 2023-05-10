@@ -2,6 +2,7 @@
 #include <string>
 #include <modbus/modbus.h>
 #include <array>
+#include <vector>
 #include <cmath>
 
 class Yj10
@@ -134,6 +135,7 @@ public:
      */
     void WriteAllJoints(std::array<uint16_t, 5> pwms);
     void WriteAllJointsRad(std::array<double, 5> rads);
+    void WriteAllJointsRad(std::vector<double> rads);
 
     /**
      * @brief 写入所有关节位置 PWM

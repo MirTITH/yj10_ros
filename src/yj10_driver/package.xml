@@ -72,6 +72,9 @@
   <build_export_depend>ros_control_boilerplate</build_export_depend>
   <exec_depend>ros_control_boilerplate</exec_depend>
 
+  <build_depend>std_srvs</build_depend>
+  <exec_depend>std_srvs</exec_depend>
+
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->

@@ -8,9 +8,12 @@
 class Yj10HWInterface : public ros_control_boilerplate::GenericHWInterface
 {
 private:
-    int read_retry_time = 0;
+    // 注意，这个机械臂的固件很垃圾，交替读写一定会失败。但是可以读两次写两次。因此重试次数必须不为 0
+    int read_retry_time = 1;  // 读取重试次数，设为 0 即不重试，设为 -1 即不读取
+    int write_retry_time = 1; // 写入重试次数，设为 0 即不重试，设为 -1 即不写入
     volatile bool is_connected = false;
     Yj10 arm;
+    decltype(joint_position_) last_joint_position_cmd_;
 
 public:
     volatile bool is_fake_connect = false; // 假装连接上了。如果此值为 true，获取的关节位置为假值
