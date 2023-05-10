@@ -5,6 +5,7 @@
 #include <iostream>
 #include <mutex>
 #include <thread>
+#include <std_srvs/Empty.h>
 
 int scanKeyboard()
 {
@@ -263,10 +264,17 @@ int main(int argc, char **argv) // 主函数
 {
     // ros初始化节点
     ros::init(argc, argv, "yj10_moveit_group");
+    ros::NodeHandle nh;
     // 多线程
     ros::AsyncSpinner spinner(1);
     // 开启新的线程
     spinner.start();
+
+    ros::ServiceClient client_close = nh.serviceClient<std_srvs::Empty>("close_clamp");
+    ros::ServiceClient client_open = nh.serviceClient<std_srvs::Empty>("open_clamp");
+    ros::ServiceClient client_stop = nh.serviceClient<std_srvs::Empty>("stop_clamp");
+
+    std_srvs::Empty srv;
 
     // 初始化需要使用move group控制的机械臂中的arm group
     moveit::planning_interface::MoveGroupInterface arm("arm_group");
@@ -293,6 +301,9 @@ int main(int argc, char **argv) // 主函数
 
     std::thread execute_thread(ExecuteThread, &arm, &targetPose);
     ROS_INFO_STREAM("You can use w,s,a,d,i,k to control the end now.");
+    ROS_INFO_STREAM("You can use o to open the clamper.");
+    ROS_INFO_STREAM("You can use c to close the clamper.");
+    ROS_INFO_STREAM("You can use p to stop the clamper.");
 
     while (ros::ok())
     {
@@ -317,6 +328,15 @@ int main(int argc, char **argv) // 主函数
             break;
         case 'i':
             targetPose.position.z += 0.02;
+            break;
+        case 'o':
+            client_open.call(srv);
+            break;
+        case 'c':
+            client_close.call(srv);
+            break;
+        case 'p':
+            client_stop.call(srv);
             break;
 
         default:
