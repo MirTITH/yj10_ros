@@ -38,7 +38,7 @@ int scanKeyboard()
     return in;
 }
 
-void ForwardKinematics(moveit::planning_interface::MoveGroupInterface &arm)
+/* void ForwardKinematics(moveit::planning_interface::MoveGroupInterface &arm)
 {
     // 设置机械臂运动的允许误差
     arm.setGoalJointTolerance(0.001);
@@ -64,8 +64,8 @@ void ForwardKinematics(moveit::planning_interface::MoveGroupInterface &arm)
     arm.move();
     sleep(1);
 }
-
-void InverseKinematics(moveit::planning_interface::MoveGroupInterface &arm)
+ */
+/* void InverseKinematics(moveit::planning_interface::MoveGroupInterface &arm)
 {
     // 设置目标位置所使用的参考坐标系
     arm.setPoseReferenceFrame("base_link");
@@ -75,10 +75,10 @@ void InverseKinematics(moveit::planning_interface::MoveGroupInterface &arm)
 
     // 设置位置(单位：米)和姿态（单位：弧度）的允许误差
     arm.setGoalPositionTolerance(0.01);
-    arm.setGoalOrientationTolerance(0.1);
+    arm.setGoalOrientationTolerance(0.01);
 
     // 设置允许的最大速度和加速度
-    arm.setMaxVelocityScalingFactor(0.4);
+    // arm.setMaxVelocityScalingFactor(0.4);
 
     auto targetPose = arm.getCurrentPose();
 
@@ -126,7 +126,7 @@ void InverseKinematics(moveit::planning_interface::MoveGroupInterface &arm)
     arm.setNamedTarget("fold");
     arm.move();
     sleep(1);
-}
+} */
 
 void Cartesian(moveit::planning_interface::MoveGroupInterface &arm)
 {
@@ -282,7 +282,7 @@ int main(int argc, char **argv) // 主函数
     arm.setGoalOrientationTolerance(0.1);
 
     // 设置允许的最大速度和加速度
-    arm.setMaxVelocityScalingFactor(0.4);
+    // arm.setMaxVelocityScalingFactor(0.4);
 
     ROS_INFO_STREAM("Return to 'down' position.");
     // 控制机械臂先回到初始化位置
@@ -292,7 +292,7 @@ int main(int argc, char **argv) // 主函数
     auto targetPose = arm.getCurrentPose().pose;
 
     std::thread execute_thread(ExecuteThread, &arm, &targetPose);
-    ROS_INFO_STREAM("You can use w,s,a,d to control the end now.");
+    ROS_INFO_STREAM("You can use w,s,a,d,i,k to control the end now.");
 
     while (ros::ok())
     {
@@ -312,11 +312,17 @@ int main(int argc, char **argv) // 主函数
         case 'd': // d
             targetPose.position.x += 0.05;
             break;
+        case 'k':
+            targetPose.position.z -= 0.02;
+            break;
+        case 'i':
+            targetPose.position.z += 0.02;
+            break;
 
         default:
             break;
         }
-        // ROS_INFO_STREAM(targetPose);
+        ROS_INFO_STREAM(targetPose);
     }
 
     execute_thread.join();
