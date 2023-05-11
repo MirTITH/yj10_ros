@@ -27,7 +27,6 @@ YJ10 机械臂的驱动，负责与实体机械臂通信。
 #### 启动 driver，连接机械臂
 
 ```bash
-source devel/setup.bash
 roslaunch yj10_driver yj10_control_HW.launch
 ```
 

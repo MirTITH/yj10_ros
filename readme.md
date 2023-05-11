@@ -4,8 +4,11 @@ YJ10 排爆机械臂的 ROS 库。使用 RS485 与机械臂通信，通信协议
 
 ## 目录结构
 
-- docs: 机械臂相关文档
-- src: ros 软件包代码
+| 文件夹 | 说明           |
+| ------ | -------------- |
+| docs   | 机械臂相关文档 |
+| src    | ros 软件包代码 |
+
 
 各个软件包的说明放在各自的子文件夹里
 
@@ -29,6 +32,20 @@ rosdep install --rosdistro $ROS_DISTRO --ignore-src --from-paths src
 catkin_make
 ```
 
+source:
+
+对于bash用户:
+
+```sh
+source devel/setup.bash
+```
+
+对于zsh用户:
+
+```sh
+source devel/setup.zsh
+```
+
 ## 使用说明
 
 仅列举常见使用方式，详细说明请查看各自软件包的 readme 文件
@@ -36,14 +53,12 @@ catkin_make
 ### 显示机械臂的模型
 
 ```bash
-source devel/setup.bash
 roslaunch yj10_description display.launch
 ```
 
 ### 使用 Gazebo 仿真，在 Rviz 中使用 Moveit
 
 ```bash
-source devel/setup.bash
 roslaunch yj10_moveit_config demo_gazebo.launch
 ```
 
@@ -61,7 +76,6 @@ roslaunch yj10_moveit_config demo_gazebo.launch
 执行以下命令，连接机械臂并运行 Rviz Moveit：
 
 ```bash
-source devel/setup.bash
 roslaunch yj10_moveit_config demo_hardware.launch
 ```
 

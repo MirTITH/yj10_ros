@@ -14,7 +14,7 @@ YJ10 的 moveit 包，主要由 MoveIt Setup Assistant 生成。
 
 ### demo_gazebo.launch
 
-启动 Gazebo 仿真，和 Rviz 可视化运动规划
+启动 Gazebo 仿真和 Rviz 可视化运动规划
 
 > 请注意，这并不会让实体机械臂动起来
 
