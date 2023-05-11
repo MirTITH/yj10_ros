@@ -72,10 +72,10 @@ int main(int argc, char *argv[])
     ros::NodeHandle nh;
 
     // 夹爪服务
-    auto s1 = nh.advertiseService("close_clamp", handle_close_clamp);
-    auto s2 = nh.advertiseService("open_clamp", handle_open_clamp);
-    auto s3 = nh.advertiseService("stop_clamp", handle_stop_clamp);
-    auto s4 = nh.advertiseService("get_clamp_state", handle_get_clamp_state);
+    auto s1 = nh.advertiseService("clamp/close", handle_close_clamp);
+    auto s2 = nh.advertiseService("clamp/open", handle_open_clamp);
+    auto s3 = nh.advertiseService("clamp/stop", handle_stop_clamp);
+    auto s4 = nh.advertiseService("clamp/get_state", handle_get_clamp_state);
 
     // NOTE: We run the ROS loop in a separate thread as external calls s   uch
     // as service callbacks to load controllers can block the (main) control loop

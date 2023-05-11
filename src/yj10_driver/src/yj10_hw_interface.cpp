@@ -2,12 +2,24 @@
 #include <thread>
 #include <chrono>
 #include "yj10_hw_interface.h"
+#include <exception>
 
 using namespace std;
 
 void Yj10HWInterface::ReadClamper()
 {
     std::lock_guard<std::mutex> guard(mux_);
+
+    if (is_fake_connect)
+    {
+        throw runtime_error("Unsupported in fake connect mode");
+    }
+
+    if (is_connected == false)
+    {
+        return;
+    }
+
     for (size_t i = 0; i < read_retry_time; i++)
     {
         try
@@ -26,6 +38,17 @@ void Yj10HWInterface::ReadClamper()
 void Yj10HWInterface::WriteClamperInstruction(Yj10::ClamperState state)
 {
     std::lock_guard<std::mutex> guard(mux_);
+
+    if (is_fake_connect)
+    {
+        return;
+    }
+
+    if (is_connected == false)
+    {
+        return;
+    }
+
     for (size_t i = 0; i < write_retry_time; i++)
     {
         try

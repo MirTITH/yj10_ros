@@ -270,9 +270,9 @@ int main(int argc, char **argv) // 主函数
     // 开启新的线程
     spinner.start();
 
-    ros::ServiceClient client_close = nh.serviceClient<std_srvs::Empty>("close_clamp");
-    ros::ServiceClient client_open = nh.serviceClient<std_srvs::Empty>("open_clamp");
-    ros::ServiceClient client_stop = nh.serviceClient<std_srvs::Empty>("stop_clamp");
+    ros::ServiceClient client_close = nh.serviceClient<std_srvs::Empty>("clamp/close");
+    ros::ServiceClient client_open = nh.serviceClient<std_srvs::Empty>("clamp/open");
+    ros::ServiceClient client_stop = nh.serviceClient<std_srvs::Empty>("clamp/stop");
 
     std_srvs::Empty srv;
 

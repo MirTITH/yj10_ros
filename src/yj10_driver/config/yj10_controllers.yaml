@@ -2,8 +2,8 @@
 # Settings for ros_control control loop
 
 generic_hw_control_loop:
-   loop_hz: 10
-   cycle_time_error_threshold: 0.1
+   loop_hz: 10 # 与机械臂的通信频率
+   cycle_time_error_threshold: 0.1 # 通信周期误差阈值，当实际通信周期达不到指定值时，会显示 warning
 
 # Settings for ros_control hardware interface (used in generic_hw_interface.cpp)
 hardware_interface:
