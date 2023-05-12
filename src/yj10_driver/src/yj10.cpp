@@ -202,7 +202,7 @@ void Yj10::WriteAllJointsRad(std::vector<double> rads)
         size = rads.size();
     }
 
-    for (size_t i = 0; i < pwms.size(); i++)
+    for (size_t i = 0; i < size; i++)
     {
         pwms.at(i) = RadToPwm(rads.at(i));
     }

@@ -7,6 +7,7 @@ controller_list:
       - joint3
       - joint4
       - joint5
+      - fake_joint6
 initial:  # Define initial robot poses per group
   - group: arm_group
     pose: origin

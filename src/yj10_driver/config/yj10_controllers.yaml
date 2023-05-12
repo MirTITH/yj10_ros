@@ -13,6 +13,7 @@ hardware_interface:
       - joint3
       - joint4
       - joint5
+      - fake_joint6 # 假关节，用于使逆解有解
 
 # Publish all joint states ----------------------------------
 # Creates the /joint_states topic necessary in ROS
@@ -31,3 +32,4 @@ position_trajectory_controller:
       - joint3
       - joint4
       - joint5
+      - fake_joint6

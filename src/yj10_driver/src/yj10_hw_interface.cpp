@@ -79,7 +79,10 @@ void Yj10HWInterface::read(ros::Duration &elapsed_time)
     // 即使读取也意义不大，读取到的是机械臂内部 PID 的期望值，而不是机械臂的实际姿态
     if (is_first_read)
     {
+        is_first_read = false;
+        auto origin_size = joint_position_.size();
         joint_position_ = initial_joint_position_;
+        joint_position_.resize(origin_size);
     }
     else
     {

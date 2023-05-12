@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
     joint_pos.at(1) = nh.param("/yj10_driver/initial_joint_position/joint2", 0.0);
     joint_pos.at(2) = nh.param("/yj10_driver/initial_joint_position/joint3", 0.0);
     joint_pos.at(3) = nh.param("/yj10_driver/initial_joint_position/joint4", 0.0);
-    joint_pos.at(4) = nh.param("/yj10_driver/initial_joint_position/joint4", 0.0);
+    joint_pos.at(4) = nh.param("/yj10_driver/initial_joint_position/joint5", 0.0);
     yj10_hw_interface_instance->SetInitialJointPos(joint_pos);
 
     // Start the control loop

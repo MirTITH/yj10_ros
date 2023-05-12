@@ -241,6 +241,8 @@ void ExecuteThread(moveit::planning_interface::MoveGroupInterface *arm, geometry
 
             // 将目标位姿写入
             arm->setApproximateJointValueTarget(nowPose);
+            // arm->
+            // arm->setPositionTarget(nowPose.position.x, nowPose.position.y, nowPose.position.z);
 
             // 规划，并判断是否规划成功
             if (arm->plan(plan) == moveit::core::MoveItErrorCode::SUCCESS)

@@ -14,8 +14,7 @@ Stephen Brawner (brawner@gmail.com)
         <inertial>
             <origin xyz="0.00013467 -0.04325 0.025845" rpy="0 0 0" />
             <mass value="1.7019" />
-            <inertia ixx="0.0071647" ixy="1.7821E-05" ixz="8.0419E-06" iyy="0.0034039"
-                iyz="-6.1005E-05" izz="0.0097375" />
+            <inertia ixx="0.0071647" ixy="1.7821E-05" ixz="8.0419E-06" iyy="0.0034039" iyz="-6.1005E-05" izz="0.0097375" />
         </inertial>
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0" />
@@ -37,8 +36,7 @@ Stephen Brawner (brawner@gmail.com)
         <inertial>
             <origin xyz="0.0017435 -1.6818E-05 0.061315" rpy="0 0 0" />
             <mass value="0.87269" />
-            <inertia ixx="0.0018566" ixy="3.7517E-07" ixz="-0.00012802" iyy="0.0018955"
-                iyz="1.235E-06" izz="0.0010518" />
+            <inertia ixx="0.0018566" ixy="3.7517E-07" ixz="-0.00012802" iyy="0.0018955" iyz="1.235E-06" izz="0.0010518" />
         </inertial>
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0" />
@@ -67,8 +65,7 @@ Stephen Brawner (brawner@gmail.com)
         <inertial>
             <origin xyz="0.046603 -0.00044956 0.27133" rpy="0 0 0" />
             <mass value="3.09" />
-            <inertia ixx="0.036472" ixy="-1.0215E-06" ixz="-1.8792E-05" iyy="0.036366"
-                iyz="1.8127E-07" izz="0.0025346" />
+            <inertia ixx="0.036472" ixy="-1.0215E-06" ixz="-1.8792E-05" iyy="0.036366" iyz="1.8127E-07" izz="0.0025346" />
         </inertial>
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0" />
@@ -97,8 +94,7 @@ Stephen Brawner (brawner@gmail.com)
         <inertial>
             <origin xyz="-0.028145 0.32599 -6.7599E-09" rpy="0 0 0" />
             <mass value="1.8688" />
-            <inertia ixx="0.027421" ixy="-0.00023639" ixz="-4.1986E-10" iyy="0.00089832"
-                iyz="2.8529E-11" izz="0.027448" />
+            <inertia ixx="0.027421" ixy="-0.00023639" ixz="-4.1986E-10" iyy="0.00089832" iyz="2.8529E-11" izz="0.027448" />
         </inertial>
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0" />
@@ -127,8 +123,7 @@ Stephen Brawner (brawner@gmail.com)
         <inertial>
             <origin xyz="0.042982 -0.024425 2.0748E-09" rpy="0 0 0" />
             <mass value="0.63938" />
-            <inertia ixx="0.0010731" ixy="5.6489E-07" ixz="3.7312E-11" iyy="0.00054075"
-                iyz="-6.3284E-12" izz="0.0013552" />
+            <inertia ixx="0.0010731" ixy="5.6489E-07" ixz="3.7312E-11" iyy="0.00054075" iyz="-6.3284E-12" izz="0.0013552" />
         </inertial>
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0" />
@@ -157,8 +152,7 @@ Stephen Brawner (brawner@gmail.com)
         <inertial>
             <origin xyz="0.0014574 0.058849 0.00040131" rpy="0 0 0" />
             <mass value="0.22539" />
-            <inertia ixx="9.0373E-05" ixy="-8.613E-07" ixz="4.3725E-09" iyy="7.106E-05"
-                iyz="4.5328E-07" izz="0.00014085" />
+            <inertia ixx="9.0373E-05" ixy="-8.613E-07" ixz="4.3725E-09" iyy="7.106E-05" iyz="4.5328E-07" izz="0.00014085" />
         </inertial>
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0" />
@@ -183,9 +177,21 @@ Stephen Brawner (brawner@gmail.com)
         <axis xyz="-0.009646 -0.99995 0" />
         <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.57" />
     </joint>
-
+    <link name="fake_link6">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <box size="0.01 0.01 0.01" />
+            </geometry>
+        </visual>
+    </link>
+    <joint name="fake_joint6" type="continuous">
+        <parent link="link5" />
+        <child link="fake_link6" />
+        <axis xyz="0 0 1" />
+        <origin xyz="0 0.1 0" rpy="0 0 0" />
+    </joint>
     <!-- For Gazebo -->
-
     <transmission name="trans_joint1">
         <type>transmission_interface/SimpleTransmission</type>
         <joint name="joint1">
@@ -241,4 +247,15 @@ Stephen Brawner (brawner@gmail.com)
             <robotNamespace>/</robotNamespace>
         </plugin>
     </gazebo>
+    <transmission name="trans_fake_joint6">
+        <type>transmission_interface/SimpleTransmission</type>
+        <joint name="fake_joint6">
+            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+        </joint>
+        <actuator name="fake_joint6_motor">
+            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <mechanicalReduction>1</mechanicalReduction>
+        </actuator>
+    </transmission>
 </robot>
+
