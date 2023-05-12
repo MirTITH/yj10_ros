@@ -13,7 +13,9 @@ private:
     int read_retry_time = 1;  // 读取重试次数，设为 0 即不重试，设为 -1 即不读取
     int write_retry_time = 1; // 写入重试次数，设为 0 即不重试，设为 -1 即不写入
     volatile bool is_connected = false;
+    bool is_first_read = true;
     decltype(joint_position_) last_joint_position_cmd_;
+    decltype(joint_position_) initial_joint_position_;
     Yj10 arm;
     std::mutex mux_;
 
@@ -21,6 +23,11 @@ public:
     volatile bool is_fake_connect = false; // 假装连接上了。如果此值为 true，获取的关节位置为假值
 
     void ReadClamper();
+
+    void SetInitialJointPos(decltype(joint_position_) joint_pos)
+    {
+        initial_joint_position_ = joint_pos;
+    }
 
     Yj10::ClamperState GetClamperState() const
     {

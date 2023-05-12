@@ -84,21 +84,29 @@ int main(int argc, char *argv[])
 
     // Create the hardware interface specific to your robot
     yj10_hw_interface_instance.reset(new Yj10HWInterface(nh));
-
     yj10_hw_interface_instance->init(); // size and register required interfaces inside generic_hw_interface.cpp
+
+    // 设置初始位姿
+    std::vector<double> joint_pos(5);
+    joint_pos.at(0) = nh.param("/yj10_driver/initial_joint_position/joint1", 0.0);
+    joint_pos.at(1) = nh.param("/yj10_driver/initial_joint_position/joint2", 0.0);
+    joint_pos.at(2) = nh.param("/yj10_driver/initial_joint_position/joint3", 0.0);
+    joint_pos.at(3) = nh.param("/yj10_driver/initial_joint_position/joint4", 0.0);
+    joint_pos.at(4) = nh.param("/yj10_driver/initial_joint_position/joint4", 0.0);
+    yj10_hw_interface_instance->SetInitialJointPos(joint_pos);
 
     // Start the control loop
     ros_control_boilerplate::GenericHWControlLoop control_loop(nh, yj10_hw_interface_instance);
 
     std::string device;
     bool is_fake_connect = false;
-    nh.param("yj10_connection/fake_connect", is_fake_connect, false);
+    nh.param("yj10_driver/fake_connect", is_fake_connect, false);
 
     if (is_fake_connect)
     {
         // 假装连接上了，用于 debug
         yj10_hw_interface_instance->is_fake_connect = true;
-        ROS_WARN_STREAM("yj10_connection/fake_connect is set to true. Use fake connect");
+        ROS_WARN_STREAM("yj10_driver/fake_connect is set to true. Use fake connect");
     }
     else
     {
@@ -106,15 +114,15 @@ int main(int argc, char *argv[])
         while (ros::ok())
         {
             // 获取串口设备
-            if (nh.getParam("yj10_connection/serial_device", device) == false)
+            if (nh.getParam("yj10_driver/serial_device", device) == false)
             {
-                ROS_ERROR_STREAM("Failed to get 'yj10_connection/serial_device' in param server.");
+                ROS_ERROR_STREAM("Failed to get 'yj10_driver/serial_device' in param server.");
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 continue;
             }
             else
             {
-                ROS_INFO_STREAM("Read 'yj10_connection/serial_device' from param server. Device: " << device);
+                ROS_INFO_STREAM("Read 'yj10_driver/serial_device' from param server. Device: " << device);
             }
 
             // 尝试连接

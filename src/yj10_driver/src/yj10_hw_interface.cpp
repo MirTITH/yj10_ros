@@ -77,7 +77,14 @@ void Yj10HWInterface::read(ros::Duration &elapsed_time)
     std::lock_guard<std::mutex> guard(mux_);
     // 这个机械臂的固件非常垃圾，交替读写会失败，于是不读取机械臂姿态了，返回假数据
     // 即使读取也意义不大，读取到的是机械臂内部 PID 的期望值，而不是机械臂的实际姿态
-    joint_position_ = joint_position_command_;
+    if (is_first_read)
+    {
+        joint_position_ = initial_joint_position_;
+    }
+    else
+    {
+        joint_position_ = joint_position_command_;
+    }
 
     if (is_fake_connect)
     {
