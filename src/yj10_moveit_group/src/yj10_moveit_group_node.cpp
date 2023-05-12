@@ -241,8 +241,6 @@ void ExecuteThread(moveit::planning_interface::MoveGroupInterface *arm, geometry
 
             // 将目标位姿写入
             arm->setApproximateJointValueTarget(nowPose);
-            // arm->
-            // arm->setPositionTarget(nowPose.position.x, nowPose.position.y, nowPose.position.z);
 
             // 规划，并判断是否规划成功
             if (arm->plan(plan) == moveit::core::MoveItErrorCode::SUCCESS)
@@ -296,8 +294,8 @@ int main(int argc, char **argv) // 主函数
 
     ROS_INFO_STREAM("Return to 'down' position.");
     // 控制机械臂先回到初始化位置
-    arm.setNamedTarget("down");
-    arm.move();
+    // arm.setNamedTarget("down");
+    // arm.move();
 
     auto targetPose = arm.getCurrentPose().pose;
 
