@@ -33,3 +33,14 @@ position_trajectory_controller:
       - joint4
       - joint5
       - fake_joint6
+
+joint_group_position_controller:
+   type: position_controllers/JointGroupPositionController
+   # These joints can likely just be copied from the hardware_interface list above
+   joints:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+      - joint5
+      - fake_joint6

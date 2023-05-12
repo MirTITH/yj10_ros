@@ -21,10 +21,15 @@
 
     <!-- Load controller manager -->
     <node name="ros_control_controller_manager" pkg="controller_manager"
-        type="controller_manager" respawn="false"
-        output="screen"
-        args="spawn
+        type="spawner" respawn="false" output="screen"
+        args="
             joint_state_controller
+            joint_group_position_controller
+            " />
+
+    <node name="ros_control_stopped_spawner" pkg="controller_manager"
+        type="spawner" respawn="false" output="screen"
+        args="--stopped
             position_trajectory_controller
             " />
 
