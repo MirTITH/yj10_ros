@@ -2,6 +2,12 @@
 
 YJ10 排爆机械臂的 ROS 库。使用 RS485 与机械臂通信，通信协议为 Modbus-RTU.
 
+## 注意事项
+
+- 请注意，该机械臂没有关节反馈，所以发布的关节消息是假消息
+- 尽量不要在关节运动时调用读写夹持器的服务
+- 夹持器在闭合状态下不要再次调用闭合命令，在完全张开状态下不要再次调用张开命令
+
 ## 目录结构
 
 | 文件夹 | 说明           |
@@ -62,13 +68,21 @@ roslaunch yj10_description display.launch
 roslaunch yj10_moveit_config demo_gazebo.launch
 ```
 
+### 连接机械臂，并复位到初始位姿
+
+这会同时启动 ros controller 并发布 joint state 关节信息
+
+```bash
+roslaunch yj10_driver yj10_control_HW.launch
+```
+
 ### 连接实体机械臂，在 Rviz 中使用 Moveit
 
 #### 准备工作
 
 1. 使用串口连接机械臂
 2. 给机械臂供电，24V 直流
-3. 在 [yj10_connection.yaml](src/yj10_driver/config/yj10_connection.yaml) 中配置串口设备
+3. 在 [yj10_driver.yaml](src/yj10_driver/config/yj10_driver.yaml) 中配置串口设备
     > 请注意，关闭其中的 `fake_connect` 才会真正连接机械臂
 
 #### 运行程序

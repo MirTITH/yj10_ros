@@ -7,7 +7,7 @@
     <arg if="$(arg debug)" name="launch_prefix" value="gdb --ex run --args" />
 
     <!-- Load settings for connection -->
-    <rosparam file="$(find yj10_driver)/config/yj10_connection.yaml" command="load" />
+    <rosparam file="$(find yj10_driver)/config/yj10_driver.yaml" command="load" />
 
     <!-- Load URDF -->
     <param name="robot_description" textfile="$(find yj10_description)/urdf/yj10.urdf" />
