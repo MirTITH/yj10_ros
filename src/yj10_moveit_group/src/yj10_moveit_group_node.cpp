@@ -277,7 +277,7 @@ int main(int argc, char **argv) // 主函数
     std_srvs::Empty srv;
 
     // 初始化需要使用move group控制的机械臂中的arm group
-    moveit::planning_interface::MoveGroupInterface arm("arm_group");
+    moveit::planning_interface::MoveGroupInterface arm("manipulator");
 
     // 设置目标位置所使用的参考坐标系
     arm.setPoseReferenceFrame("base_link");
