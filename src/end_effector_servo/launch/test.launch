@@ -3,6 +3,7 @@
     <arg name="urdf_param" default="/robot_description" />
     <arg name="chain_start" default="world" />
     <arg name="chain_end" default="fake_link6" />
+    <arg name="rot_link_name" default="link5" />
     <arg name="ik_timeout" default="0.01" />
     <arg name="ik_error" default="1e-5" />
     <arg name="ik_loop_rate" default="10" />
@@ -12,6 +13,11 @@
     Manip1: runs for full timeout, returns solution that maximizes sqrt(det(J*J^T)) (the product of the singular values of the Jacobian)
     Manip2: runs for full timeout, returns solution that minimizes the ratio of min to max singular values of the Jacobian. -->
     <arg name="ik_solve_type" default="Distance" />
+    <arg name="joint_states_topic" default="/joint_states" />
+    <arg name="controller_command_topic" default="/joint_group_position_controller/command" />
+    <arg name="controller_joint_num" default="6" />
+    <!-- You can publish this msg to control the end -->
+    <arg name="end_effector_velocity_topic" default="end_effector_velocity" />
 
     <!-- Load URDF -->
     <!-- <param name="robot_description" textfile="$(find yj10_description)/urdf/yj10.urdf" /> -->
@@ -19,10 +25,15 @@
     <node name="end_effector_servo" pkg="end_effector_servo" type="end_effector_servo_node" output="screen">
         <param name="chain_start" value="$(arg chain_start)" />
         <param name="chain_end" value="$(arg chain_end)" />
+        <param name="rot_link_name" value="$(arg rot_link_name)" />
         <param name="ik_timeout" value="$(arg ik_timeout)" />
         <param name="urdf_param" value="$(arg urdf_param)" />
         <param name="ik_error" value="$(arg ik_error)" />
         <param name="ik_solve_type" value="$(arg ik_solve_type)" />
         <param name="ik_loop_rate" value="$(arg ik_loop_rate)" />
+        <param name="joint_states_topic" value="$(arg joint_states_topic)" />
+        <param name="controller_command_topic" value="$(arg controller_command_topic)" />
+        <param name="controller_joint_num" value="$(arg controller_joint_num)" />
+        <param name="end_effector_velocity_topic" value="$(arg end_effector_velocity_topic)" />
     </node>
 </launch>

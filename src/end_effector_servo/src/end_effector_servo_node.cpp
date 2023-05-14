@@ -17,6 +17,7 @@
 #include <array>
 #include <std_srvs/Empty.h>
 
+// 用于保护全局变量线程安全
 template <typename T>
 class SafeGlobal
 {
@@ -41,12 +42,19 @@ private:
     std::mutex mutex_;
 };
 
+std::string ChainStart, ChainEnd, RotLinkName;
 SafeGlobal<std::vector<double>> JointPositions;
+tf2_ros::Buffer tfBuffer;
 std::atomic<bool> HasGotJointPos(false);
 SafeGlobal<KDL::Frame> NowEEPos; // current end effector position
 SafeGlobal<KDL::Frame> ExpEEPos; // expected end effector position
 unsigned int NumberOfJoint = 0;
 std::atomic<double> JointStateRcvPeriod(0);
+
+SafeGlobal<std::array<double, 3>> VelocityPos = {};
+SafeGlobal<std::array<double, 3>> VelocityRpy = {};
+
+SafeGlobal<geometry_msgs::Transform> RotLinkTransform, RotLinkToEeLink;
 
 KDL::Frame ConvertToKdlFrame(geometry_msgs::Transform transform)
 {
@@ -127,12 +135,11 @@ void PublishJoints(ros::Publisher &pub, KDL::JntArray joint_pos, int controller_
     pub.publish(pos_msg);
 }
 
-void TargetSetter(ros::NodeHandle *node, std::string start_chain, std::string end_chain, std::string rot_link_name)
+/* void TargetSetter(ros::NodeHandle *node, std::string start_chain, std::string end_chain, std::string rot_link_name)
 {
     KeyboardAsync keyboard;
-    // KDL::Frame temp_pos;
-    tf2_ros::Buffer tfBuffer;
-    tf2_ros::TransformListener tfListener(tfBuffer);
+
+    tf2_ros::TransformListener tfListener();
     geometry_msgs::TransformStamped rot_link;
     geometry_msgs::TransformStamped rot_link_to_ee_link;
 
@@ -152,6 +159,8 @@ void TargetSetter(ros::NodeHandle *node, std::string start_chain, std::string en
         {
             temp_pos.p(i) += velocity_pos.at(i) * period;
         }
+
+        // 变换矩阵运算
         temp_pos.M = temp_pos.M * KDL::Rotation::RPY(velocity_rpy.at(0) * period, velocity_rpy.at(1) * period, velocity_rpy.at(2) * period);
         temp_pos = temp_pos * ConvertToKdlFrame(rot_link_to_ee_link.transform);
         ExpEEPos.set(temp_pos);
@@ -236,8 +245,9 @@ void TargetSetter(ros::NodeHandle *node, std::string start_chain, std::string en
         rate.sleep();
     }
 }
+ */
 
-void jointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
+void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
 {
     static ros::Time last_time = ros::Time::now();
     ros::Time current_time = ros::Time::now();
@@ -248,22 +258,65 @@ void jointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
     HasGotJointPos = true;
 }
 
+void UpdateExpEEPos(KDL::Frame rot_link, KDL::Frame rot_link_to_ee_link, std::array<double, 3> velocity_pos, std::array<double, 3> velocity_rpy)
+{
+    // KDL::Frame rot_link = ConvertToKdlFrame(rot_link.transform);
+    auto period = JointStateRcvPeriod.load();
+    for (size_t i = 0; i < 3; i++)
+    {
+        rot_link.p(i) += velocity_pos.at(i) * period;
+    }
+
+    // 变换矩阵运算
+    rot_link.M = rot_link.M * KDL::Rotation::RPY(velocity_rpy.at(0) * period, velocity_rpy.at(1) * period, velocity_rpy.at(2) * period);
+    rot_link = rot_link * rot_link_to_ee_link;
+    ExpEEPos.set(rot_link);
+}
+
+void EndEffectorVelocityCallback(const geometry_msgs::Twist &msg)
+{
+    ROS_INFO_STREAM(msg);
+
+    std::array<double, 3> velocity_pos, velocity_rpy;
+    velocity_pos.at(0) = msg.linear.x;
+    velocity_pos.at(1) = msg.linear.y;
+    velocity_pos.at(2) = msg.linear.z;
+    velocity_rpy.at(0) = msg.angular.x;
+    velocity_rpy.at(1) = msg.angular.y;
+    velocity_rpy.at(2) = msg.angular.z;
+
+    VelocityPos.set(velocity_pos);
+    VelocityRpy.set(velocity_rpy);
+}
+
+void ServoThread(ros::NodeHandle *nh, double loop_rate)
+{
+    ros::Rate rate(loop_rate);
+
+    while (nh->ok())
+    {
+        UpdateExpEEPos(ConvertToKdlFrame(RotLinkTransform.get()), ConvertToKdlFrame(RotLinkToEeLink.get()), VelocityPos.get(), VelocityRpy.get());
+        rate.sleep();
+    }
+}
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "end_effector_servo_node");
     ros::NodeHandle node("~");
 
-    std::string chain_start, chain_end, rot_link_name, urdf_param, ik_solve_type;
+    std::string urdf_param, ik_solve_type;
     double ik_timeout;
     double ik_error;
     double ik_loop_rate;
 
     std::string joint_states_topic, controller_command_topic;
     int controller_joint_num;
+    std::string end_effector_velocity_topic;
 
-    node.param("chain_start", chain_start, std::string("world"));
-    node.param("chain_end", chain_end, std::string("fake_link6"));
-    node.param("rot_link_name", rot_link_name, std::string("link5"));
+    node.param("chain_start", ChainStart, std::string("world"));
+    node.param("chain_end", ChainEnd, std::string("fake_link6"));
+    node.param("rot_link_name", RotLinkName, std::string("link5"));
     node.param("urdf_param", urdf_param, std::string("/robot_description"));
     node.param("ik_timeout", ik_timeout, 0.005);
     node.param("ik_error", ik_error, 1e-5);
@@ -272,11 +325,12 @@ int main(int argc, char **argv)
     node.param("joint_states_topic", joint_states_topic, std::string("/joint_states"));
     node.param("controller_command_topic", controller_command_topic, std::string("/joint_group_position_controller/command"));
     node.param("controller_joint_num", controller_joint_num, 6);
+    node.param("end_effector_velocity_topic", end_effector_velocity_topic, std::string("end_effector_velocity"));
 
     ROS_INFO_STREAM("node.getNamespace(): " << node.getNamespace());
-    ROS_INFO_STREAM("chain_start: " << chain_start);
-    ROS_INFO_STREAM("chain_end: " << chain_end);
-    ROS_INFO_STREAM("rot_link_name: " << rot_link_name);
+    ROS_INFO_STREAM("chain_start: " << ChainStart);
+    ROS_INFO_STREAM("chain_end: " << ChainEnd);
+    ROS_INFO_STREAM("rot_link_name: " << RotLinkName);
     ROS_INFO_STREAM("urdf_param: " << urdf_param);
     ROS_INFO_STREAM("ik_solve_type: " << ik_solve_type);
     ROS_INFO_STREAM("ik_timeout: " << ik_timeout);
@@ -285,16 +339,20 @@ int main(int argc, char **argv)
     ROS_INFO_STREAM("joint_states_topic: " << joint_states_topic);
     ROS_INFO_STREAM("controller_command_topic: " << controller_command_topic);
     ROS_INFO_STREAM("controller_joint_num: " << controller_joint_num);
+    ROS_INFO_STREAM("listen to: " << end_effector_velocity_topic);
 
     // 获取joint_state
-    ros::Subscriber sub = node.subscribe(joint_states_topic, 1, jointStateCallback);
+    ros::Subscriber joint_state_sub = node.subscribe(joint_states_topic, 1, JointStateCallback);
+
+    // 获取期望的末端执行器速度
+    ros::Subscriber ee_velocity_sub = node.subscribe(end_effector_velocity_topic, 1, EndEffectorVelocityCallback);
 
     // 关节控制器
     ros::AsyncSpinner spinner(4); // Use 4 threads
     spinner.start();
     ros::Publisher pos_pub = node.advertise<std_msgs::Float64MultiArray>(controller_command_topic, 1);
 
-    if (chain_start == "" || chain_end == "")
+    if (ChainStart == "" || ChainEnd == "")
     {
         ROS_FATAL("Missing chain info in launch file");
         exit(-1);
@@ -329,7 +387,7 @@ int main(int argc, char **argv)
     // % Distance: runs for the full timeout_in_secs, then returns the solution that minimizes SSE from the seed
     // % Manip1: runs for full timeout, returns solution that maximizes sqrt(det(J*J^T)) (the product of the singular values of the Jacobian)
     // % Manip2: runs for full timeout, returns solution that minimizes the ratio of min to max singular values of the Jacobian.
-    TRAC_IK::TRAC_IK ik_solver(chain_start, chain_end, urdf_param, ik_timeout, ik_error, TRAC_IK::Distance);
+    TRAC_IK::TRAC_IK ik_solver(ChainStart, ChainEnd, urdf_param, ik_timeout, ik_error, TRAC_IK::Distance);
 
     KDL::Chain chain;
     if (!ik_solver.getKDLChain(chain))
@@ -348,18 +406,21 @@ int main(int argc, char **argv)
     KDL::SetToZero(joint_pos_result);
 
     // tf2
-    tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener tfListener(tfBuffer);
-    geometry_msgs::TransformStamped transformStamped;
+    geometry_msgs::TransformStamped transformStamped, transformRotLink, transformRotLinkToEeLink;
 
     // 获取第一个末端位置消息
     while (node.ok())
     {
-        if (tfBuffer.canTransform(chain_start, chain_end, ros::Time(0), ros::Duration(5)))
+        if (tfBuffer.canTransform(ChainStart, ChainEnd, ros::Time(0), ros::Duration(5)))
         {
-            transformStamped = tfBuffer.lookupTransform(chain_start, chain_end, ros::Time(0), ros::Duration(1));
+            transformStamped = tfBuffer.lookupTransform(ChainStart, ChainEnd, ros::Time(0), ros::Duration(1));
+            transformRotLink = tfBuffer.lookupTransform(ChainStart, RotLinkName, ros::Time(0), ros::Duration(1));
+            transformRotLinkToEeLink = tfBuffer.lookupTransform(RotLinkName, ChainEnd, ros::Time(0), ros::Duration(1));
             NowEEPos.set(ConvertToKdlFrame(transformStamped.transform));
-            ExpEEPos.set(NowEEPos.get()); // 相当于 ExpEEPos = NowEEPos
+            RotLinkTransform.set(transformRotLink.transform);
+            RotLinkToEeLink.set(transformRotLinkToEeLink.transform);
+            ExpEEPos.set(NowEEPos.get());
             ROS_INFO_STREAM("Got tf message");
             break;
         }
@@ -384,7 +445,8 @@ int main(int argc, char **argv)
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
-    std::thread key_thread(TargetSetter, &node, chain_start, chain_end, rot_link_name);
+    // std::thread key_thread(TargetSetter, &node, ChainStart, ChainEnd, RotLinkName);
+    std::thread servo_thread(ServoThread, &node, ik_loop_rate);
 
     // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
@@ -395,7 +457,11 @@ int main(int argc, char **argv)
     {
         try
         {
-            transformStamped = tfBuffer.lookupTransform(chain_start, chain_end, ros::Time(0), ros::Duration(1));
+            transformStamped = tfBuffer.lookupTransform(ChainStart, ChainEnd, ros::Time(0), ros::Duration(1));
+            transformRotLink = tfBuffer.lookupTransform(ChainStart, RotLinkName, ros::Time(0), ros::Duration(1));
+            transformRotLinkToEeLink = tfBuffer.lookupTransform(RotLinkName, ChainEnd, ros::Time(0), ros::Duration(1));
+            RotLinkTransform.set(transformRotLink.transform);
+            RotLinkToEeLink.set(transformRotLinkToEeLink.transform);
 
             // ROS_INFO("end effector position: (%f, %f, %f)", transformStamped.transform.translation.x,
             //          transformStamped.transform.translation.y, transformStamped.transform.translation.z);
@@ -424,7 +490,8 @@ int main(int argc, char **argv)
         rate.sleep();
     }
 
-    key_thread.join();
+    // key_thread.join();
+    servo_thread.join();
     ros::waitForShutdown();
 
     return 0;
