@@ -1,16 +1,28 @@
 <?xml version="1.0"?>
 <launch>
-    <arg name="chain_start" default="link1" />
+    <arg name="urdf_param" default="/robot_description" />
+    <arg name="chain_start" default="world" />
     <arg name="chain_end" default="fake_link6" />
-    <arg name="timeout" default="0.005" />
+    <arg name="ik_timeout" default="0.01" />
+    <arg name="ik_error" default="1e-5" />
+    <arg name="ik_loop_rate" default="10" />
+    <!-- The ik_solve_type can be one of the following:
+    Speed: returns very quickly the first solution found
+    Distance: runs for the full timeout_in_secs, then returns the solution that minimizes SSE from the seed
+    Manip1: runs for full timeout, returns solution that maximizes sqrt(det(J*J^T)) (the product of the singular values of the Jacobian)
+    Manip2: runs for full timeout, returns solution that minimizes the ratio of min to max singular values of the Jacobian. -->
+    <arg name="ik_solve_type" default="Distance" />
 
     <!-- Load URDF -->
     <!-- <param name="robot_description" textfile="$(find yj10_description)/urdf/yj10.urdf" /> -->
 
-    <node name="ik_test" pkg="end_effector_servo" type="end_effector_servo_node" output="screen">
+    <node name="end_effector_servo" pkg="end_effector_servo" type="end_effector_servo_node" output="screen">
         <param name="chain_start" value="$(arg chain_start)" />
         <param name="chain_end" value="$(arg chain_end)" />
-        <param name="timeout" value="$(arg timeout)" />
-        <param name="urdf_param" value="/robot_description" />
+        <param name="ik_timeout" value="$(arg ik_timeout)" />
+        <param name="urdf_param" value="$(arg urdf_param)" />
+        <param name="ik_error" value="$(arg ik_error)" />
+        <param name="ik_solve_type" value="$(arg ik_solve_type)" />
+        <param name="ik_loop_rate" value="$(arg ik_loop_rate)" />
     </node>
 </launch>
