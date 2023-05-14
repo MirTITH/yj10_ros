@@ -175,27 +175,27 @@ void TargetSetter(ros::NodeHandle *node, std::string start_chain, std::string en
         switch (ch)
         {
         case 'w':
-            velocity_pos.at(1) = 0.1;
+            velocity_pos.at(1) = 0.2;
             UpdateExpEEPos();
             break;
         case 's':
-            velocity_pos.at(1) = -0.1;
+            velocity_pos.at(1) = -0.2;
             UpdateExpEEPos();
             break;
         case 'a':
-            velocity_pos.at(0) = -0.1;
+            velocity_pos.at(0) = -0.2;
             UpdateExpEEPos();
             break;
         case 'd':
-            velocity_pos.at(0) = 0.1;
+            velocity_pos.at(0) = 0.2;
             UpdateExpEEPos();
             break;
         case 'r':
-            velocity_pos.at(2) = 0.1;
+            velocity_pos.at(2) = 0.2;
             UpdateExpEEPos();
             break;
         case 'f':
-            velocity_pos.at(2) = -0.1;
+            velocity_pos.at(2) = -0.2;
             UpdateExpEEPos();
             break;
         case 'j':

@@ -86,10 +86,10 @@ void Yj10::Connect(const std::string device, int device_id, int baud, char parit
         ThrowException();
     }
 
-    // 设置超时时间
-    modbus_set_response_timeout(mb, 0, 100);
+    // 设置超时时间(单位 微秒)
+    modbus_set_response_timeout(mb, 0, 50000);
     // modbus_set_indication_timeout(mb, 1, 0);
-    modbus_set_byte_timeout(mb, 0, 10);
+    // modbus_set_byte_timeout(mb, 0, 20000);
 
 #ifdef DEBUG
     modbus_set_debug(mb, true);

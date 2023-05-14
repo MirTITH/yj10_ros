@@ -20,7 +20,7 @@ void Yj10HWInterface::ReadClamper()
         return;
     }
 
-    for (size_t i = 0; i < read_retry_time; i++)
+    for (size_t i = 0; i < clamp_read_retry_time; i++)
     {
         try
         {
@@ -29,10 +29,11 @@ void Yj10HWInterface::ReadClamper()
         }
         catch (const std::exception &e)
         {
+            ROS_WARN_STREAM("ReadClamper: " << e.what() << " Retrying...");
             this_thread::sleep_for(chrono::milliseconds(100));
         }
     }
-    // 多试一次
+    // 多试一次（主要是为了把 exception 传出去）
     arm.ReadClamper();
 }
 void Yj10HWInterface::WriteClamperInstruction(Yj10::ClamperState state)
@@ -49,7 +50,7 @@ void Yj10HWInterface::WriteClamperInstruction(Yj10::ClamperState state)
         return;
     }
 
-    for (size_t i = 0; i < write_retry_time; i++)
+    for (size_t i = 0; i < clamp_write_retry_time; i++)
     {
         try
         {
@@ -58,10 +59,11 @@ void Yj10HWInterface::WriteClamperInstruction(Yj10::ClamperState state)
         }
         catch (const std::exception &e)
         {
+            ROS_WARN_STREAM("WriteClamper: " << e.what() << " Retrying...");
             this_thread::sleep_for(chrono::milliseconds(100));
         }
     }
-    // 多试一次
+    // 多试一次（主要是为了把 exception 传出去）
     arm.WriteClamperInstruction(state);
 }
 
@@ -74,9 +76,8 @@ Yj10HWInterface::Yj10HWInterface(ros::NodeHandle &nh, urdf::Model *urdf_model)
 
 void Yj10HWInterface::read(ros::Duration &elapsed_time)
 {
-    std::lock_guard<std::mutex> guard(mux_);
-    // 这个机械臂的固件非常垃圾，交替读写会失败，于是不读取机械臂姿态了，返回假数据
-    // 即使读取也意义不大，读取到的是机械臂内部 PID 的期望值，而不是机械臂的实际姿态
+    // 读取意义不大，读取到的是机械臂内部 PID 的期望值，而不是机械臂的实际姿态
+    // 不读取机械臂姿态了，返回假数据
     if (is_first_read)
     {
         is_first_read = false;
@@ -93,6 +94,8 @@ void Yj10HWInterface::read(ros::Duration &elapsed_time)
     {
         return;
     }
+
+    // std::lock_guard<std::mutex> guard(mux_);
 
     // if (is_connected)
     // {
@@ -138,7 +141,6 @@ void Yj10HWInterface::read(ros::Duration &elapsed_time)
 
 void Yj10HWInterface::write(ros::Duration &elapsed_time)
 {
-    std::lock_guard<std::mutex> guard(mux_);
     // Safety
     enforceLimits(elapsed_time);
 
@@ -154,6 +156,7 @@ void Yj10HWInterface::write(ros::Duration &elapsed_time)
         {
             try
             {
+                std::lock_guard<std::mutex> guard(mux_);
                 arm.WriteAllJointsRad(joint_position_command_);
 
                 // 更新 last_joint_position_cmd_
