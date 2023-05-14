@@ -15,6 +15,7 @@
 #include <mutex>
 #include <atomic>
 #include <array>
+#include <std_srvs/Empty.h>
 
 template <typename T>
 class SafeGlobal
@@ -135,6 +136,11 @@ void TargetSetter(ros::NodeHandle *node, std::string start_chain, std::string en
     geometry_msgs::TransformStamped rot_link;
     geometry_msgs::TransformStamped rot_link_to_ee_link;
 
+    ros::ServiceClient client_close = node->serviceClient<std_srvs::Empty>("/clamp/close");
+    ros::ServiceClient client_open = node->serviceClient<std_srvs::Empty>("/clamp/open");
+    ros::ServiceClient client_stop = node->serviceClient<std_srvs::Empty>("/clamp/stop");
+    std_srvs::Empty srv;
+
     std::array<double, 3> velocity_pos = {};
     std::array<double, 3> velocity_rpy = {};
 
@@ -150,6 +156,10 @@ void TargetSetter(ros::NodeHandle *node, std::string start_chain, std::string en
         temp_pos = temp_pos * ConvertToKdlFrame(rot_link_to_ee_link.transform);
         ExpEEPos.set(temp_pos);
     };
+
+    ROS_INFO_STREAM("You can use w,s,a,d to move");
+    ROS_INFO_STREAM("You can use i,k,j,l to rotate");
+    ROS_INFO_STREAM("You can use o,p,[ to open,close,stop the clamp");
 
     ros::Rate rate(100);
 
@@ -203,6 +213,15 @@ void TargetSetter(ros::NodeHandle *node, std::string start_chain, std::string en
         case 'k':
             velocity_rpy.at(0) = -1;
             UpdateExpEEPos();
+            break;
+        case 'o':
+            client_open.call(srv);
+            break;
+        case 'p':
+            client_close.call(srv);
+            break;
+        case '[':
+            client_stop.call(srv);
             break;
 
         default:
