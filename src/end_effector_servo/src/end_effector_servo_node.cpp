@@ -72,32 +72,39 @@ void TargetSetter(ros::NodeHandle *node, KDL::Frame *now_pos, KDL::Frame *target
 
     // std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
-    ros::Rate rate(10);
+    ros::Rate rate(100);
+
+    *target_pos = *now_pos;
 
     while (node->ok())
     {
         auto ch = keyboard.Read();
         mux.lock();
-        *target_pos = *now_pos;
 
         switch (ch)
         {
         case 'w':
-            target_pos->p(1) += +0.01;
+            *target_pos = *now_pos;
+            target_pos->p(1) += 0.01;
             break;
         case 's':
+            *target_pos = *now_pos;
             target_pos->p(1) -= 0.01;
             break;
         case 'a':
-            target_pos->p(0) -= +0.01;
+            *target_pos = *now_pos;
+            target_pos->p(0) -= 0.01;
             break;
         case 'd':
+            *target_pos = *now_pos;
             target_pos->p(0) += 0.01;
             break;
         case 'f':
+            *target_pos = *now_pos;
             target_pos->p(2) += 0.01;
             break;
         case 'v':
+            *target_pos = *now_pos;
             target_pos->p(2) -= 0.01;
             break;
 
@@ -117,15 +124,18 @@ void TargetSetter(ros::NodeHandle *node, KDL::Frame *now_pos, KDL::Frame *target
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "my_tf2_listener");
+    ros::init(argc, argv, "end_effector_servo_node");
     ros::NodeHandle node;
+
+    // tf2
     tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener tfListener(tfBuffer);
 
+    // 发布关节指令
     ros::Publisher pos_pub = node.advertise<std_msgs::Float64MultiArray>("/joint_group_position_controller/command", 1);
-
     std_msgs::Float64MultiArray pos_msg;
 
+    //
     std::string chain_start, chain_end, urdf_param;
     urdf_param = "/robot_description";
     chain_start = "world";
@@ -192,8 +202,8 @@ int main(int argc, char **argv)
             //          transformStamped.transform.translation.y, transformStamped.transform.translation.z);
 
             mux.lock();
-            KDL::Frame temp_target_pos = target_pos;
             NowPos = ConvertToKdlFrame(transformStamped.transform);
+            KDL::Frame temp_target_pos = target_pos;
             mux.unlock();
 
             for (size_t i = 0; i < 3; i++)
@@ -226,6 +236,8 @@ int main(int argc, char **argv)
         }
         rate.sleep();
     }
+
+    key_thread.join();
 
     return 0;
 };
