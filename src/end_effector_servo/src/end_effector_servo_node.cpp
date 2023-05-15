@@ -57,7 +57,7 @@ private:
     std::mutex mutex_;
 };
 
-std::string ChainStart, ChainEnd, RotLinkName;
+std::string ChainStart, ChainEnd, RotXLinkName, RotYLinkName, RotZLinkName;
 SafeGlobal<std::vector<double>> JointPositions;
 tf2_ros::Buffer tfBuffer;
 std::atomic<bool> HasGotJointPos(false);
@@ -71,7 +71,8 @@ double MaxTopicInterval;
 SafeGlobal<std::array<double, 3>> VelocityPos = {};
 SafeGlobal<std::array<double, 3>> VelocityRpy = {};
 
-SafeGlobal<geometry_msgs::Transform> RotLinkTransform, RotLinkToEeLink;
+SafeGlobal<geometry_msgs::Transform> RotXLinkTransform;
+SafeGlobal<geometry_msgs::Transform> RotXLinkToRotYLink, RotYLinkToRotZLink, RotZLinkToEeLink;
 
 KDL::Frame ConvertToKdlFrame(geometry_msgs::Transform transform)
 {
@@ -301,19 +302,26 @@ void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
     HasGotJointPos = true;
 }
 
-void UpdateExpEEPos(KDL::Frame rot_link, KDL::Frame rot_link_to_ee_link, std::array<double, 3> velocity_pos, std::array<double, 3> velocity_rpy)
+void UpdateExpEEPos(std::array<double, 3> velocity_pos, std::array<double, 3> velocity_rpy)
 {
-    // KDL::Frame rot_link = ConvertToKdlFrame(rot_link.transform);
+    auto rot_x_link = ConvertToKdlFrame(RotXLinkTransform.get());
+    auto rot_x_link_to_rot_y_link = ConvertToKdlFrame(RotXLinkToRotYLink.get());
+    auto rot_y_link_to_rot_z_link = ConvertToKdlFrame(RotYLinkToRotZLink.get());
+    auto rot_z_link_to_ee_link = ConvertToKdlFrame(RotZLinkToEeLink.get());
     auto period = JointStateRcvPeriod.load();
-    for (size_t i = 0; i < 3; i++)
-    {
-        rot_link.p(i) += velocity_pos.at(i) * period;
-    }
 
     // 变换矩阵运算
-    rot_link.M = rot_link.M * KDL::Rotation::RPY(velocity_rpy.at(0) * period, velocity_rpy.at(1) * period, velocity_rpy.at(2) * period);
-    rot_link = rot_link * rot_link_to_ee_link;
-    ExpEEPos.set(rot_link);
+    rot_x_link.M = rot_x_link.M * KDL::Rotation::RPY(velocity_rpy.at(0) * period, 0, 0);
+    auto rot_y_link = rot_x_link * rot_x_link_to_rot_y_link;
+    rot_y_link.M = rot_y_link.M * KDL::Rotation::RPY(0, velocity_rpy.at(1) * period, 0);
+    auto rot_z_link = rot_y_link * rot_y_link_to_rot_z_link;
+    rot_z_link.M = rot_z_link.M * KDL::Rotation::RPY(0, 0, velocity_rpy.at(2) * period);
+    auto exp_ee_link = rot_z_link * rot_z_link_to_ee_link;
+    for (size_t i = 0; i < 3; i++)
+    {
+        exp_ee_link.p(i) += velocity_pos.at(i) * period;
+    }
+    ExpEEPos.set(exp_ee_link);
 }
 
 void EndEffectorVelocityCallback(const geometry_msgs::Twist &msg)
@@ -347,7 +355,7 @@ void ServoThread(ros::NodeHandle *nh, double loop_rate)
             auto delta_src = ros::Time::now().toSec() - LastMsgTime.load();
             if (delta_src < MaxTopicInterval)
             {
-                UpdateExpEEPos(ConvertToKdlFrame(RotLinkTransform.get()), ConvertToKdlFrame(RotLinkToEeLink.get()), VelocityPos.get(), VelocityRpy.get());
+                UpdateExpEEPos(VelocityPos.get(), VelocityRpy.get());
             }
             else
             {
@@ -391,7 +399,9 @@ int main(int argc, char **argv)
 
     node.param("chain_start", ChainStart, std::string("world"));
     node.param("chain_end", ChainEnd, std::string("fake_link6"));
-    node.param("rot_link_name", RotLinkName, std::string("link5"));
+    node.param("rot_x_link_name", RotXLinkName, std::string(""));
+    node.param("rot_y_link_name", RotYLinkName, std::string(""));
+    node.param("rot_z_link_name", RotZLinkName, std::string(""));
     node.param("urdf_param", urdf_param, std::string("/robot_description"));
     node.param("ik_timeout", ik_timeout, 0.005);
     node.param("ik_error", ik_error, 1e-5);
@@ -406,7 +416,9 @@ int main(int argc, char **argv)
     ROS_INFO_STREAM("node.getNamespace(): " << node.getNamespace());
     ROS_INFO_STREAM("chain_start: " << ChainStart);
     ROS_INFO_STREAM("chain_end: " << ChainEnd);
-    ROS_INFO_STREAM("rot_link_name: " << RotLinkName);
+    ROS_INFO_STREAM("rot_x_link_name: " << RotXLinkName);
+    ROS_INFO_STREAM("rot_y_link_name: " << RotYLinkName);
+    ROS_INFO_STREAM("rot_z_link_name: " << RotZLinkName);
     ROS_INFO_STREAM("urdf_param: " << urdf_param);
     ROS_INFO_STREAM("ik_solve_type: " << ik_solve_type);
     ROS_INFO_STREAM("ik_timeout: " << ik_timeout);
@@ -484,19 +496,28 @@ int main(int argc, char **argv)
 
     // tf2
     tf2_ros::TransformListener tfListener(tfBuffer);
-    geometry_msgs::TransformStamped transformStamped, transformRotLink, transformRotLinkToEeLink;
+    geometry_msgs::TransformStamped transformEeLink;
+    geometry_msgs::TransformStamped transformRotXLink;
+    geometry_msgs::TransformStamped transformRotXLinkToRotYLink;
+    geometry_msgs::TransformStamped transformRotYLinkToRotZLink;
+    geometry_msgs::TransformStamped transformRotZLinkToEeLink;
 
     // 获取第一个末端位置消息
     while (node.ok())
     {
         if (tfBuffer.canTransform(ChainStart, ChainEnd, ros::Time(0), ros::Duration(5)))
         {
-            transformStamped = tfBuffer.lookupTransform(ChainStart, ChainEnd, ros::Time(0), ros::Duration(1));
-            transformRotLink = tfBuffer.lookupTransform(ChainStart, RotLinkName, ros::Time(0), ros::Duration(1));
-            transformRotLinkToEeLink = tfBuffer.lookupTransform(RotLinkName, ChainEnd, ros::Time(0), ros::Duration(1));
-            NowEEPos.set(ConvertToKdlFrame(transformStamped.transform));
-            RotLinkTransform.set(transformRotLink.transform);
-            RotLinkToEeLink.set(transformRotLinkToEeLink.transform);
+            transformEeLink = tfBuffer.lookupTransform(ChainStart, ChainEnd, ros::Time(0), ros::Duration(1));
+            transformRotXLink = tfBuffer.lookupTransform(ChainStart, RotXLinkName, ros::Time(0), ros::Duration(1));
+            transformRotXLinkToRotYLink = tfBuffer.lookupTransform(RotXLinkName, RotYLinkName, ros::Time(0), ros::Duration(1));
+            transformRotYLinkToRotZLink = tfBuffer.lookupTransform(RotYLinkName, RotZLinkName, ros::Time(0), ros::Duration(1));
+            transformRotZLinkToEeLink = tfBuffer.lookupTransform(RotZLinkName, ChainEnd, ros::Time(0), ros::Duration(1));
+            RotXLinkTransform.set(transformRotXLink.transform);
+            RotXLinkToRotYLink.set(transformRotXLinkToRotYLink.transform);
+            RotYLinkToRotZLink.set(transformRotYLinkToRotZLink.transform);
+            RotZLinkToEeLink.set(transformRotZLinkToEeLink.transform);
+
+            NowEEPos.set(ConvertToKdlFrame(transformEeLink.transform));
             ExpEEPos.set(NowEEPos.get());
             ROS_INFO_STREAM("Got tf message");
             break;
@@ -534,16 +555,20 @@ int main(int argc, char **argv)
     {
         try
         {
-            transformStamped = tfBuffer.lookupTransform(ChainStart, ChainEnd, ros::Time(0), ros::Duration(1));
-            transformRotLink = tfBuffer.lookupTransform(ChainStart, RotLinkName, ros::Time(0), ros::Duration(1));
-            transformRotLinkToEeLink = tfBuffer.lookupTransform(RotLinkName, ChainEnd, ros::Time(0), ros::Duration(1));
-            RotLinkTransform.set(transformRotLink.transform);
-            RotLinkToEeLink.set(transformRotLinkToEeLink.transform);
+            transformEeLink = tfBuffer.lookupTransform(ChainStart, ChainEnd, ros::Time(0), ros::Duration(1));
+            transformRotXLink = tfBuffer.lookupTransform(ChainStart, RotXLinkName, ros::Time(0), ros::Duration(1));
+            transformRotXLinkToRotYLink = tfBuffer.lookupTransform(RotXLinkName, RotYLinkName, ros::Time(0), ros::Duration(1));
+            transformRotYLinkToRotZLink = tfBuffer.lookupTransform(RotYLinkName, RotZLinkName, ros::Time(0), ros::Duration(1));
+            transformRotZLinkToEeLink = tfBuffer.lookupTransform(RotZLinkName, ChainEnd, ros::Time(0), ros::Duration(1));
+            RotXLinkTransform.set(transformRotXLink.transform);
+            RotXLinkToRotYLink.set(transformRotXLinkToRotYLink.transform);
+            RotYLinkToRotZLink.set(transformRotYLinkToRotZLink.transform);
+            RotZLinkToEeLink.set(transformRotZLinkToEeLink.transform);
 
-            // ROS_INFO("end effector position: (%f, %f, %f)", transformStamped.transform.translation.x,
-            //          transformStamped.transform.translation.y, transformStamped.transform.translation.z);
+            // ROS_INFO("end effector position: (%f, %f, %f)", transformEeLink.transform.translation.x,
+            //          transformEeLink.transform.translation.y, transformEeLink.transform.translation.z);
 
-            NowEEPos.set(ConvertToKdlFrame(transformStamped.transform));
+            NowEEPos.set(ConvertToKdlFrame(transformEeLink.transform));
             joint_search_start_pos = ConvertToKdlJntArray(JointPositions.get());
 
             // 反运动学

@@ -87,7 +87,7 @@ void Yj10::Connect(const std::string device, int device_id, int baud, char parit
         ThrowException();
     }
 
-    const int TimeoutUs = 50000;
+    const int TimeoutUs = 100000;
 #if ROS_VERSION_MINIMUM(1, 15, 7) // noetic
     // 设置超时时间(单位 微秒)
     modbus_set_response_timeout(mb, 0, TimeoutUs);

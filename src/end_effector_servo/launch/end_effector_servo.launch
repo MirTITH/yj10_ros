@@ -3,10 +3,12 @@
     <arg name="urdf_param" default="/robot_description" />
     <arg name="chain_start" default="world" />
     <arg name="chain_end" default="fake_link6" />
-    <arg name="rot_link_name" default="link5" />
+    <arg name="rot_x_link_name" default="link4" />
+    <arg name="rot_y_link_name" default="link5" />
+    <arg name="rot_z_link_name" default="link1" />
     <arg name="ik_timeout" default="0.01" />
     <arg name="ik_error" default="1e-5" />
-    <arg name="ik_loop_rate" default="10" />
+    <arg name="ik_loop_rate" default="20" />
     <!-- The ik_solve_type can be one of the following:
     Speed: returns very quickly the first solution found
     Distance: runs for the full timeout_in_secs, then returns the solution that minimizes SSE from the
@@ -34,7 +36,9 @@
         output="screen">
         <param name="chain_start" value="$(arg chain_start)" />
         <param name="chain_end" value="$(arg chain_end)" />
-        <param name="rot_link_name" value="$(arg rot_link_name)" />
+        <param name="rot_x_link_name" value="$(arg rot_x_link_name)" />
+        <param name="rot_y_link_name" value="$(arg rot_y_link_name)" />
+        <param name="rot_z_link_name" value="$(arg rot_z_link_name)" />
         <param name="ik_timeout" value="$(arg ik_timeout)" />
         <param name="urdf_param" value="$(arg urdf_param)" />
         <param name="ik_error" value="$(arg ik_error)" />
