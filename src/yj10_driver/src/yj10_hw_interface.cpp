@@ -77,7 +77,6 @@ Yj10HWInterface::Yj10HWInterface(ros::NodeHandle &nh, urdf::Model *urdf_model)
 void Yj10HWInterface::read(ros::Duration &elapsed_time)
 {
     // 读取意义不大，读取到的是机械臂内部 PID 的期望值，而不是机械臂的实际姿态
-    // 不读取机械臂姿态了，返回假数据
     if (is_first_read)
     {
         is_first_read = false;
@@ -87,6 +86,7 @@ void Yj10HWInterface::read(ros::Duration &elapsed_time)
     }
     else
     {
+        // 直接返回假数据
         joint_position_ = joint_position_command_;
     }
 
@@ -95,25 +95,26 @@ void Yj10HWInterface::read(ros::Duration &elapsed_time)
         return;
     }
 
-    // std::lock_guard<std::mutex> guard(mux_);
-
-    // if (is_connected)
-    // {
-    //     for (int i = 0; i <= read_retry_time; i++)
-    //     {
-    //         try
-    //         {
-    //             arm.ReadClamper();
-    //             ROS_INFO_STREAM("ReadClamper success!");
-    //             break;
-    //         }
-    //         catch (const std::exception &e)
-    //         {
-    //             this_thread::sleep_for(chrono::milliseconds(80));
-    //             ROS_INFO_STREAM("ReadClamper failed. what(): " << e.what());
-    //         }
-    //     }
-    // }
+    std::lock_guard<std::mutex> guard(mux_);
+    // 读取夹爪
+    if (is_connected)
+    {
+        for (int i = 0; i <= read_retry_time; i++)
+        {
+            try
+            {
+                arm.ReadClamper();
+                clamp_pub.publish(clamp_msg);
+                ROS_INFO_STREAM("ReadClamper success!");
+                break;
+            }
+            catch (const std::exception &e)
+            {
+                this_thread::sleep_for(chrono::milliseconds(80));
+                ROS_INFO_STREAM("ReadClamper failed. what(): " << e.what());
+            }
+        }
+    }
 
     // if (is_connected)
     // {

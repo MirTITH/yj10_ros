@@ -3,6 +3,7 @@
 #include <thread>
 #include <std_srvs/Empty.h>
 #include <std_srvs/Trigger.h>
+#include <yj10_driver/Clamp.h>
 
 using namespace std;
 
@@ -31,40 +32,40 @@ static bool handle_open_clamp(std_srvs::Empty::Request &req, std_srvs::Empty::Re
     return true;
 }
 
-static bool handle_get_clamp_state(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
-{
-    yj10_hw_interface_instance->ReadClamper();
-    auto state = yj10_hw_interface_instance->GetClamperState();
-    switch (state)
-    {
-    case Yj10::ClamperState::Close:
-        res.message = "Close";
-        res.success = true;
-        break;
-    case Yj10::ClamperState::Error:
-        res.message = "Error";
-        res.success = true;
-        break;
-    case Yj10::ClamperState::Middle:
-        res.message = "Middle";
-        res.success = true;
-        break;
-    case Yj10::ClamperState::Open:
-        res.message = "Open";
-        res.success = true;
-        break;
-    case Yj10::ClamperState::Stop:
-        res.message = "Stop";
-        res.success = true;
-        break;
+// static bool handle_get_clamp_state(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
+// {
+//     yj10_hw_interface_instance->ReadClamper();
+//     auto state = yj10_hw_interface_instance->GetClamperState();
+//     switch (state)
+//     {
+//     case Yj10::ClamperState::Close:
+//         res.message = "Close";
+//         res.success = true;
+//         break;
+//     case Yj10::ClamperState::Error:
+//         res.message = "Error";
+//         res.success = true;
+//         break;
+//     case Yj10::ClamperState::Middle:
+//         res.message = "Middle";
+//         res.success = true;
+//         break;
+//     case Yj10::ClamperState::Open:
+//         res.message = "Open";
+//         res.success = true;
+//         break;
+//     case Yj10::ClamperState::Stop:
+//         res.message = "Stop";
+//         res.success = true;
+//         break;
 
-    default:
-        res.message = "Unknown";
-        res.success = false;
-        break;
-    }
-    return true;
-}
+//     default:
+//         res.message = "Unknown";
+//         res.success = false;
+//         break;
+//     }
+//     return true;
+// }
 
 int main(int argc, char *argv[])
 {
@@ -75,7 +76,7 @@ int main(int argc, char *argv[])
     auto s1 = nh.advertiseService("clamp/close", handle_close_clamp);
     auto s2 = nh.advertiseService("clamp/open", handle_open_clamp);
     auto s3 = nh.advertiseService("clamp/stop", handle_stop_clamp);
-    auto s4 = nh.advertiseService("clamp/get_state", handle_get_clamp_state);
+    // to do
 
     // NOTE: We run the ROS loop in a separate thread as external calls s   uch
     // as service callbacks to load controllers can block the (main) control loop

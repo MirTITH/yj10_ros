@@ -4,6 +4,7 @@
 #include <ros_control_boilerplate/generic_hw_interface.h>
 #include "yj10_driver/yj10.hpp"
 #include <mutex>
+#include <yj10_driver/Clamp.h>
 
 /// \brief Hardware interface for a robot
 class Yj10HWInterface : public ros_control_boilerplate::GenericHWInterface
@@ -20,9 +21,15 @@ private:
     decltype(joint_position_) initial_joint_position_;
     Yj10 arm;
     std::mutex mux_;
+    decltype(nh_.advertise<yj10_driver::Clamp>("clamp/fdb", 1))clamp_pub;
 
 public:
     volatile bool is_fake_connect = false; // 假装连接上了。如果此值为 true，获取的关节位置为假值
+
+    void init() override{
+        clamp_pub = nh_.advertise<yj10_driver::Clamp>("clamp/fdb", 1);
+        ros_control_boilerplate::GenericHWInterface::init();
+    }
 
     void ReadClamper();
 
