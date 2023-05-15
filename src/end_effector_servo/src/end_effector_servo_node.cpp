@@ -37,6 +37,21 @@ public:
         data_ = value;
     }
 
+    void lock()
+    {
+        mutex_.lock();
+    }
+
+    void unlock()
+    {
+        mutex_.unlock();
+    }
+
+    T &data()
+    {
+        return data_;
+    }
+
 private:
     T data_;
     std::mutex mutex_;
@@ -50,6 +65,8 @@ SafeGlobal<KDL::Frame> NowEEPos; // current end effector position
 SafeGlobal<KDL::Frame> ExpEEPos; // expected end effector position
 unsigned int NumberOfJoint = 0;
 std::atomic<double> JointStateRcvPeriod(0);
+std::atomic<double> LastMsgTime;
+double MaxTopicInterval;
 
 SafeGlobal<std::array<double, 3>> VelocityPos = {};
 SafeGlobal<std::array<double, 3>> VelocityRpy = {};
@@ -115,6 +132,29 @@ public:
     }
 };
 
+bool NeedUpdate()
+{
+    auto velocity_pos = VelocityPos.get();
+
+    for (auto &vec : velocity_pos)
+    {
+        if (vec != 0)
+        {
+            return true;
+        }
+    }
+
+    auto velocity_rpy = VelocityRpy.get();
+    for (auto &vec : velocity_rpy)
+    {
+        if (vec != 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * @brief 发布关节命令
  * @note controller 只接受长度等于 controller_joint_num 的数组，如果长度不够，这个函数会自动填充 0，如果长度超出，会自动截断
@@ -125,14 +165,17 @@ public:
  */
 void PublishJoints(ros::Publisher &pub, KDL::JntArray joint_pos, int controller_joint_num)
 {
-    std_msgs::Float64MultiArray pos_msg;
-    pos_msg.data.resize(controller_joint_num, 0);
-    size_t num_of_effective_joint = joint_pos.data.size() < controller_joint_num ? joint_pos.data.size() : controller_joint_num;
-    for (size_t i = 0; i < num_of_effective_joint; i++)
+    if (NeedUpdate())
     {
-        pos_msg.data.at(i) = joint_pos(i);
+        std_msgs::Float64MultiArray pos_msg;
+        pos_msg.data.resize(controller_joint_num, 0);
+        size_t num_of_effective_joint = joint_pos.data.size() < controller_joint_num ? joint_pos.data.size() : controller_joint_num;
+        for (size_t i = 0; i < num_of_effective_joint; i++)
+        {
+            pos_msg.data.at(i) = joint_pos(i);
+        }
+        pub.publish(pos_msg);
     }
-    pub.publish(pos_msg);
 }
 
 /* void TargetSetter(ros::NodeHandle *node, std::string start_chain, std::string end_chain, std::string rot_link_name)
@@ -275,7 +318,8 @@ void UpdateExpEEPos(KDL::Frame rot_link, KDL::Frame rot_link_to_ee_link, std::ar
 
 void EndEffectorVelocityCallback(const geometry_msgs::Twist &msg)
 {
-    ROS_INFO_STREAM(msg);
+    LastMsgTime.store(ros::Time::now().toSec());
+    // ROS_INFO_STREAM(msg);
 
     std::array<double, 3> velocity_pos, velocity_rpy;
     velocity_pos.at(0) = msg.linear.x;
@@ -293,9 +337,38 @@ void ServoThread(ros::NodeHandle *nh, double loop_rate)
 {
     ros::Rate rate(loop_rate);
 
+    bool show_timeout_msg = true;
+
     while (nh->ok())
     {
-        UpdateExpEEPos(ConvertToKdlFrame(RotLinkTransform.get()), ConvertToKdlFrame(RotLinkToEeLink.get()), VelocityPos.get(), VelocityRpy.get());
+        if (NeedUpdate())
+        {
+            show_timeout_msg = true;
+            auto delta_src = ros::Time::now().toSec() - LastMsgTime.load();
+            if (delta_src < MaxTopicInterval)
+            {
+                UpdateExpEEPos(ConvertToKdlFrame(RotLinkTransform.get()), ConvertToKdlFrame(RotLinkToEeLink.get()), VelocityPos.get(), VelocityRpy.get());
+            }
+            else
+            {
+                if (show_timeout_msg)
+                {
+                    ROS_WARN_STREAM("Did not get msg for " << delta_src << "sec. Stop.");
+                    show_timeout_msg = false;
+
+                    VelocityPos.lock();
+                    VelocityPos.data().fill(0);
+                    VelocityPos.unlock();
+                    VelocityRpy.lock();
+                    VelocityRpy.data().fill(0);
+                    VelocityRpy.unlock();
+                }
+            }
+        }
+        else
+        {
+            ExpEEPos.set(NowEEPos.get());
+        }
         rate.sleep();
     }
 }
@@ -304,6 +377,8 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "end_effector_servo_node");
     ros::NodeHandle node("~");
+
+    LastMsgTime.store(ros::Time::now().toSec());
 
     std::string urdf_param, ik_solve_type;
     double ik_timeout;
@@ -326,6 +401,7 @@ int main(int argc, char **argv)
     node.param("controller_command_topic", controller_command_topic, std::string("/joint_group_position_controller/command"));
     node.param("controller_joint_num", controller_joint_num, 6);
     node.param("end_effector_velocity_topic", end_effector_velocity_topic, std::string("end_effector_velocity"));
+    node.param("max_topic_interval", MaxTopicInterval, 0.3);
 
     ROS_INFO_STREAM("node.getNamespace(): " << node.getNamespace());
     ROS_INFO_STREAM("chain_start: " << ChainStart);
@@ -340,6 +416,7 @@ int main(int argc, char **argv)
     ROS_INFO_STREAM("controller_command_topic: " << controller_command_topic);
     ROS_INFO_STREAM("controller_joint_num: " << controller_joint_num);
     ROS_INFO_STREAM("listen to: " << end_effector_velocity_topic);
+    ROS_INFO_STREAM("max_topic_interval: " << MaxTopicInterval);
 
     // 获取joint_state
     ros::Subscriber joint_state_sub = node.subscribe(joint_states_topic, 1, JointStateCallback);

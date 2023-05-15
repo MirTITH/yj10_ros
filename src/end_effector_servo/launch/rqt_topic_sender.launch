@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+    <node name="rqt_topic_sender" pkg="rqt_gui" type="rqt_gui" output="screen"
+        args="--perspective-file $(find end_effector_servo)/config/rqt_topic_sender.perspective" />
+</launch>

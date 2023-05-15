@@ -86,6 +86,8 @@ void Yj10::Connect(const std::string device, int device_id, int baud, char parit
         ThrowException();
     }
 
+    // melodic 1,14,13
+
     // 设置超时时间(单位 微秒)
     modbus_set_response_timeout(mb, 0, 50000);
     // modbus_set_indication_timeout(mb, 1, 0);

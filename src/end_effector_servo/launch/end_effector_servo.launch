@@ -9,20 +9,29 @@
     <arg name="ik_loop_rate" default="10" />
     <!-- The ik_solve_type can be one of the following:
     Speed: returns very quickly the first solution found
-    Distance: runs for the full timeout_in_secs, then returns the solution that minimizes SSE from the seed
-    Manip1: runs for full timeout, returns solution that maximizes sqrt(det(J*J^T)) (the product of the singular values of the Jacobian)
-    Manip2: runs for full timeout, returns solution that minimizes the ratio of min to max singular values of the Jacobian. -->
+    Distance: runs for the full timeout_in_secs, then returns the solution that minimizes SSE from the
+    seed
+    Manip1: runs for full timeout, returns solution that maximizes sqrt(det(J*J^T)) (the product of the
+    singular values of the Jacobian)
+    Manip2: runs for full timeout, returns solution that minimizes the ratio of min to max singular
+    values of the Jacobian. -->
     <arg name="ik_solve_type" default="Distance" />
     <arg name="joint_states_topic" default="/joint_states" />
     <arg name="controller_command_topic" default="/joint_group_position_controller/command" />
     <arg name="controller_joint_num" default="6" />
-    <!-- You can publish this msg to control the end -->
+
+    <!-- You can publish to this topic to control the end effector -->
+    <!-- You sholid repeatedly publish the topic. 
+    If the publish interval is beyond max_topic_interval, 
+    the this program will automatically stop the arm. -->
     <arg name="end_effector_velocity_topic" default="end_effector_velocity" />
+    <arg name="max_topic_interval" default="0.2" />
 
     <!-- Load URDF -->
     <!-- <param name="robot_description" textfile="$(find yj10_description)/urdf/yj10.urdf" /> -->
 
-    <node name="end_effector_servo" pkg="end_effector_servo" type="end_effector_servo_node" output="screen">
+    <node name="end_effector_servo" pkg="end_effector_servo" type="end_effector_servo_node"
+        output="screen">
         <param name="chain_start" value="$(arg chain_start)" />
         <param name="chain_end" value="$(arg chain_end)" />
         <param name="rot_link_name" value="$(arg rot_link_name)" />
@@ -35,5 +44,6 @@
         <param name="controller_command_topic" value="$(arg controller_command_topic)" />
         <param name="controller_joint_num" value="$(arg controller_joint_num)" />
         <param name="end_effector_velocity_topic" value="$(arg end_effector_velocity_topic)" />
+        <param name="max_topic_interval" value="$(arg max_topic_interval)" />
     </node>
 </launch>
