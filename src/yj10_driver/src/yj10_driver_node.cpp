@@ -2,7 +2,7 @@
 #include <ros_control_boilerplate/generic_hw_control_loop.h>
 #include <thread>
 #include <std_srvs/Empty.h>
-#include <std_srvs/Trigger.h>
+#include <std_msgs/Float32.h>
 
 using namespace std;
 #if ROS_VERSION_MINIMUM(1, 15, 7) // noetic
@@ -34,39 +34,29 @@ static bool handle_open_clamp(std_srvs::Empty::Request &req, std_srvs::Empty::Re
     return true;
 }
 
-static bool handle_get_clamp_state(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
+void SetClosingCurrentCallback(const std_msgs::Float32::ConstPtr &msg)
 {
-    yj10_hw_interface_instance->ReadClamper();
-    auto state = yj10_hw_interface_instance->GetClamperState();
-    switch (state)
+    if (msg.get()->data >= 0 && msg.get()->data <= yj10_hw_interface_instance->ClamperMaxCurrent())
     {
-    case Yj10::ClamperState::Close:
-        res.message = "Close";
-        res.success = true;
-        break;
-    case Yj10::ClamperState::Error:
-        res.message = "Error";
-        res.success = true;
-        break;
-    case Yj10::ClamperState::Middle:
-        res.message = "Middle";
-        res.success = true;
-        break;
-    case Yj10::ClamperState::Open:
-        res.message = "Open";
-        res.success = true;
-        break;
-    case Yj10::ClamperState::Stop:
-        res.message = "Stop";
-        res.success = true;
-        break;
-
-    default:
-        res.message = "Unknown";
-        res.success = false;
-        break;
+        while (ros::ok())
+        {
+            try
+            {
+                yj10_hw_interface_instance->WriteClamperClosingCurrent(msg.get()->data);
+                ROS_INFO_STREAM("SetClosingCurrent to " << msg.get()->data);
+                break;
+            }
+            catch (const std::exception &e)
+            {
+                ROS_WARN_STREAM("SetClosingCurrent failed: " << e.what() << " Retrying");
+                this_thread::sleep_for(chrono::milliseconds(100));
+            }
+        }
     }
-    return true;
+    else
+    {
+        ROS_ERROR_STREAM("SetClosingCurrent: invalid value: " << msg.get()->data << ". The max current is " << yj10_hw_interface_instance->ClamperMaxCurrent() << " A");
+    }
 }
 
 int main(int argc, char *argv[])
@@ -78,7 +68,9 @@ int main(int argc, char *argv[])
     auto s1 = nh.advertiseService("clamp/close", handle_close_clamp);
     auto s2 = nh.advertiseService("clamp/open", handle_open_clamp);
     auto s3 = nh.advertiseService("clamp/stop", handle_stop_clamp);
-    auto s4 = nh.advertiseService("clamp/get_state", handle_get_clamp_state);
+    auto clamp_current_sub = nh.subscribe("clamp/set_closing_current", 1, SetClosingCurrentCallback);
+    // auto sub = nh.subscribe;
+    // to do
 
     // NOTE: We run the ROS loop in a separate thread as external calls s   uch
     // as service callbacks to load controllers can block the (main) control loop
