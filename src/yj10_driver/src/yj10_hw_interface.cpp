@@ -30,12 +30,18 @@ void Yj10HWInterface::ReadClamper()
         catch (const std::exception &e)
         {
             ROS_WARN_STREAM("ReadClamper: " << e.what() << " Retrying...");
-            this_thread::sleep_for(chrono::milliseconds(100));
+            this_thread::sleep_for(chrono::milliseconds(50));
         }
     }
     // 多试一次（主要是为了把 exception 传出去）
     arm.ReadClamper();
 }
+void Yj10HWInterface::ReadConfig()
+{
+    std::lock_guard<std::mutex> guard(mux_);
+    arm.ReadAllInputRegs();
+}
+
 void Yj10HWInterface::WriteClamperInstruction(Yj10::ClamperState state)
 {
     std::lock_guard<std::mutex> guard(mux_);
@@ -60,7 +66,7 @@ void Yj10HWInterface::WriteClamperInstruction(Yj10::ClamperState state)
         catch (const std::exception &e)
         {
             ROS_WARN_STREAM("WriteClamper: " << e.what() << " Retrying...");
-            this_thread::sleep_for(chrono::milliseconds(100));
+            this_thread::sleep_for(chrono::milliseconds(50));
         }
     }
     // 多试一次（主要是为了把 exception 传出去）
@@ -76,13 +82,27 @@ Yj10HWInterface::Yj10HWInterface(ros::NodeHandle &nh, urdf::Model *urdf_model)
 
 void Yj10HWInterface::read(ros::Duration &elapsed_time)
 {
-    // 读取意义不大，读取到的是机械臂内部 PID 的期望值，而不是机械臂的实际姿态
     if (is_first_read)
     {
         is_first_read = false;
         auto origin_size = joint_position_.size();
         joint_position_ = initial_joint_position_;
         joint_position_.resize(origin_size);
+
+        while (ros::ok())
+        {
+            // 尝试获取机械臂配置
+            try
+            {
+                ReadConfig();
+                break; // 成功后退出循环
+            }
+            catch (const std::exception &e)
+            {
+                ROS_ERROR_STREAM("Failed to ReadConfig. Retrying...");
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+        }
     }
     else
     {
@@ -95,27 +115,34 @@ void Yj10HWInterface::read(ros::Duration &elapsed_time)
         return;
     }
 
-    std::lock_guard<std::mutex> guard(mux_);
     // 读取夹爪
+    yj10_driver::Clamp clamp_msg;
     if (is_connected)
     {
         for (int i = 0; i <= read_retry_time; i++)
         {
             try
             {
+                // this_thread::sleep_for(chrono::milliseconds(50));
+                std::lock_guard<std::mutex> guard(mux_);
                 arm.ReadClamper();
+                clamp_msg.current = arm.ClamperCurrent() / 1000.0;
+                clamp_msg.state = (int)arm.Clamper();
+                clamp_msg.closing_current = arm.ClamperClosingCurrent() / 1000.0;
+                clamp_msg.max_current = arm.ClamperMaxCurrentMA() / 1000.0;
                 clamp_pub.publish(clamp_msg);
-                ROS_INFO_STREAM("ReadClamper success!");
+                // ROS_INFO_STREAM("ReadClamper success!");
                 break;
             }
             catch (const std::exception &e)
             {
-                this_thread::sleep_for(chrono::milliseconds(80));
-                ROS_INFO_STREAM("ReadClamper failed. what(): " << e.what());
+                this_thread::sleep_for(chrono::milliseconds(50));
+                // ROS_INFO_STREAM("ReadClamper failed. what(): " << e.what());
             }
         }
     }
 
+    // 读取关节位置意义不大，读取到的是机械臂内部 PID 的期望值，而不是机械臂的实际姿态
     // if (is_connected)
     // {
     //     // 如果失败，就多尝试几次
@@ -157,6 +184,7 @@ void Yj10HWInterface::write(ros::Duration &elapsed_time)
         {
             try
             {
+                // this_thread::sleep_for(chrono::milliseconds(50));
                 std::lock_guard<std::mutex> guard(mux_);
                 arm.WriteAllJointsRad(joint_position_command_);
 
@@ -172,7 +200,7 @@ void Yj10HWInterface::write(ros::Duration &elapsed_time)
             {
                 // 机械臂的固件垃圾，写入失败经常发生，注释掉以不污染输出
                 // ROS_ERROR_STREAM("Write failed. what(): " << e.what());
-                this_thread::sleep_for(chrono::milliseconds(80));
+                // this_thread::sleep_for(chrono::milliseconds(50));
             }
         }
     }
@@ -210,4 +238,11 @@ void Yj10HWInterface::enforceLimits(ros::Duration &period)
     // ----------------------------------------------------
     // ----------------------------------------------------
     // ----------------------------------------------------
+}
+
+void Yj10HWInterface::Connect(const std::string device, int device_id, int baud, char parity, int data_bit, int stop_bit)
+{
+    std::lock_guard<std::mutex> guard(mux_);
+    arm.Connect(device, device_id, baud, parity, data_bit, stop_bit);
+    is_connected = true;
 }

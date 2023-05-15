@@ -260,6 +260,16 @@ public:
         return holding_regs.at(0xA);
     }
 
+    uint16_t ClamperClosingCurrent() const
+    {
+        return holding_regs.at(0x8);
+    }
+
+    uint16_t ClamperMaxCurrentMA() const
+    {
+        return input_regs.at(0x1B);
+    }
+
 private:
     modbus_t *mb;
     std::array<uint16_t, 35> input_regs;   // 输入寄存器组

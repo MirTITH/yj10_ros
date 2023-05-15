@@ -1,2 +1,4 @@
-float32 current
 uint8 state
+float32 current
+float32 closing_current
+float32 max_current
