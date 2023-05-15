@@ -7,7 +7,7 @@
 using namespace std;
 #if ROS_VERSION_MINIMUM(1, 15, 7) // noetic
 std::shared_ptr<Yj10HWInterface> yj10_hw_interface_instance;
-#elif
+#else
 boost::shared_ptr<Yj10HWInterface> yj10_hw_interface_instance;
 #endif
 
