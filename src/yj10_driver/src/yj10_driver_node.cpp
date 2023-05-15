@@ -5,8 +5,11 @@
 #include <std_srvs/Trigger.h>
 
 using namespace std;
-
+#if ROS_VERSION_MINIMUM(1, 15, 7) // noetic
 std::shared_ptr<Yj10HWInterface> yj10_hw_interface_instance;
+#elif
+boost::shared_ptr<Yj10HWInterface> yj10_hw_interface_instance;
+#endif
 
 static bool handle_close_clamp(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {

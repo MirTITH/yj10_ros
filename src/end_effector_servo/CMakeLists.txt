@@ -7,8 +7,6 @@ project(end_effector_servo)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(pkg_nlopt REQUIRED nlopt)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -20,6 +18,8 @@ find_package(catkin REQUIRED COMPONENTS
 # find_package(Boost REQUIRED COMPONENTS system)
 find_package(Boost REQUIRED COMPONENTS date_time)
 find_package(orocos_kdl REQUIRED)
+find_package(PkgConfig REQUIRED)
+find_package(NLopt REQUIRED)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -111,7 +111,7 @@ catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES end_effector_servo
  CATKIN_DEPENDS roscpp trac_ik_lib tf2_ros
- DEPENDS Boost orocos_kdl pkg_nlopt
+ DEPENDS Boost orocos_kdl NLOPT
 )
 
 ###########
@@ -125,7 +125,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
   ${orocos_kdl_INCLUDE_DIRS}
-  ${pkg_nlopt_INCLUDE_DIRS}
+  ${NLOPT_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -160,7 +160,7 @@ target_link_libraries(${PROJECT_NAME}_node
   ${catkin_LIBRARIES}
   ${Boost_LIBRARIES}
   ${orocos_kdl_LIBRARIES}
-  ${pkg_nlopt_LIBRARIES}
+  ${NLOPT_LIBRARIES}
 )
 
 #############

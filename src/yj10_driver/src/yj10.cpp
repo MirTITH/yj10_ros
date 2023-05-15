@@ -3,6 +3,7 @@
 #include <cstring>
 #include <iostream>
 #include <thread>
+#include <ros/ros.h>
 
 // #define DEBUG
 
@@ -86,10 +87,16 @@ void Yj10::Connect(const std::string device, int device_id, int baud, char parit
         ThrowException();
     }
 
-    // melodic 1,14,13
-
+    const int TimeoutUs = 50000;
+#if ROS_VERSION_MINIMUM(1, 15, 7) // noetic
     // 设置超时时间(单位 微秒)
-    modbus_set_response_timeout(mb, 0, 50000);
+    modbus_set_response_timeout(mb, 0, TimeoutUs);
+#else
+    const struct timeval timeout = {
+        .tv_sec = 0,
+        .tv_usec = TimeoutUs};
+    modbus_set_response_timeout(mb, &timeout);
+#endif
     // modbus_set_indication_timeout(mb, 1, 0);
     // modbus_set_byte_timeout(mb, 0, 20000);
 

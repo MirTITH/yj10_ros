@@ -337,13 +337,13 @@ void ServoThread(ros::NodeHandle *nh, double loop_rate)
 {
     ros::Rate rate(loop_rate);
 
-    bool show_timeout_msg = true;
+    bool has_updated = true;
 
     while (nh->ok())
     {
         if (NeedUpdate())
         {
-            show_timeout_msg = true;
+            has_updated = true;
             auto delta_src = ros::Time::now().toSec() - LastMsgTime.load();
             if (delta_src < MaxTopicInterval)
             {
@@ -351,10 +351,10 @@ void ServoThread(ros::NodeHandle *nh, double loop_rate)
             }
             else
             {
-                if (show_timeout_msg)
+                if (has_updated)
                 {
+                    has_updated = false;
                     ROS_WARN_STREAM("Did not get msg for " << delta_src << "sec. Stop.");
-                    show_timeout_msg = false;
 
                     VelocityPos.lock();
                     VelocityPos.data().fill(0);
