@@ -1,6 +1,6 @@
 yj10_driver:
   serial_device: "/dev/ttyUSB0"
-  # fake_connect: true
+  fake_connect: true
 
   initial_joint_position:
     joint1: 0

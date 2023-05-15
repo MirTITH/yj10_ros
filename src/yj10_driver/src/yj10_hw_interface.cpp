@@ -89,18 +89,22 @@ void Yj10HWInterface::read(ros::Duration &elapsed_time)
         joint_position_ = initial_joint_position_;
         joint_position_.resize(origin_size);
 
-        while (ros::ok())
+        if (is_fake_connect == false)
         {
             // 尝试获取机械臂配置
-            try
+            while (ros::ok())
             {
-                ReadConfig();
-                break; // 成功后退出循环
-            }
-            catch (const std::exception &e)
-            {
-                ROS_ERROR_STREAM("Failed to ReadConfig. Retrying...");
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                try
+                {
+                    ReadConfig();
+
+                    break; // 成功后退出循环
+                }
+                catch (const std::exception &e)
+                {
+                    ROS_ERROR_STREAM("Failed to ReadConfig. Retrying...");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                }
             }
         }
     }
