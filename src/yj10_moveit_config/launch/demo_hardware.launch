@@ -3,8 +3,8 @@
     <!-- MoveIt options -->
     <arg name="pipeline" default="ompl" doc="Planning pipeline to use with MoveIt" />
 
-    <include file="$(find yj10_driver)/launch/yj10_connect.launch">
-    </include>
+    <!-- <include file="$(find yj10_driver)/launch/yj10_connect.launch">
+    </include> -->
 
     <!-- Launch MoveIt -->
     <include file="$(dirname)/demo.launch" pass_all_args="true">

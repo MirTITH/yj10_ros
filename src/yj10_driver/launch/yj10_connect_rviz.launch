@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
 
-    <include file="$(find yj10_driver)/launch/yj10_control_HW.launch">
+    <include file="$(find yj10_driver)/launch/yj10_connect.launch">
     </include>
 
     <node name="rviz" pkg="rviz" type="rviz"

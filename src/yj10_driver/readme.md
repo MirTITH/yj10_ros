@@ -101,21 +101,25 @@ roslaunch yj10_driver yj10_connect_rviz.launch
 
 > 可以使用 rqt 查看和发布消息，记得先 source，否则自定义的消息类型无法解析
 
-关节角度信息发布在`/joint_states`下。其中 `position` 是一个数组，里面是各个关节的角度（弧度制），顺序和 `name` 中的名称相同。
+- 关节当前角度信息发布在`/joint_states`下
 
-*注意：关节顺序由 `name`中的顺序决定，可能不是 1~6*
+    其中 `position` 是一个数组，里面是各个关节的角度（弧度制），顺序和 `name` 中的名称相同
 
-内容具体如下：
+    *注意：关节顺序由 `name`中的顺序决定，可能不是 1~6*
 
-![image-20230516203906465](readme.assets/image-20230516203906465.png)
+    > 注意：机械臂并不能反馈关节实际角度，所以这里的信息是假信息。
 
-向 `/joint_group_position_controller/command` 发布消息可以控制机械臂关节角度。
+    内容具体如下：
 
-*注意：关节顺序由 [config/yj10_controllers.yaml](config/yj10_controllers.yaml)中 `joint_group_position_controller:` 下 `joints:` 的顺序决定，可能与 `/joint_states` 中的顺序不同*
+    ![image-20230516203906465](readme.assets/image-20230516203906465.png)
 
-消息长这样：
+- 向 `/joint_group_position_controller/command` 发布消息可以控制机械臂关节角度
 
-![image-20230516204301638](readme.assets/image-20230516204301638.png)
+    *注意：关节顺序由 [config/yj10_controllers.yaml](config/yj10_controllers.yaml)中 `joint_group_position_controller:` 下 `joints:` 的顺序决定，可能与 `/joint_states` 中的顺序不同*
+
+    消息长这样：
+
+    ![image-20230516204301638](readme.assets/image-20230516204301638.png)
 
 ### 夹持器相关
 

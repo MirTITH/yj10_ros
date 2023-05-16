@@ -79,11 +79,11 @@ roslaunch yj10_moveit_config demo_gazebo.launch
 3. 赋予串口设备访问权限（以下方法二选一）
 
     ```sh
-        # 临时打开串口权限（注意将 /dev/ttyUSB0 改为对应串口）
-        sudo chmod 666 /dev/ttyUSB0
+    # 临时打开串口权限（注意将 /dev/ttyUSB0 改为对应串口）
+    sudo chmod 666 /dev/ttyUSB0
 
-        # 永久打开串口权限（注意把 `用户名` 换成你的用户名）
-        sudo usermod -aG dialout 用户名
+    # 永久打开串口权限（注意把 `用户名` 换成你的用户名）
+    sudo usermod -aG dialout 用户名
     ```
 
 4. 给机械臂供电，24V 直流（注意，给机械臂供电后，机械臂会自动在3秒后展开）
@@ -106,10 +106,10 @@ roslaunch yj10_driver yj10_connect_rviz.launch
 
 ### 连接机械臂，在 Rviz 中使用 Moveit
 
-连接机械臂后，执行以下命令：
+连接串口后，执行以下命令：
 
 ```bash
-roslaunch yj10_driver yj10_connect_rviz.launch
+roslaunch yj10_driver yj10_connect.launch
 # 开一个新终端：
 roslaunch yj10_moveit_config demo_hardware.launch
 ```
