@@ -6,7 +6,7 @@ arm_joint_controller:
     - joint3
     - joint4
     - joint5
-    - fake_joint6
+    - joint6_fake
   gains:
     joint1:
       p: 100
@@ -33,7 +33,7 @@ arm_joint_controller:
       d: 1
       i: 1
       i_clamp: 1
-    fake_joint6:
+    joint6_fake:
       p: 100
       d: 1
       i: 1

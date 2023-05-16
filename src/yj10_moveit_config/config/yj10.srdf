@@ -16,40 +16,40 @@
         <joint name="joint3"/>
         <joint name="joint4"/>
         <joint name="joint5"/>
-        <joint name="fake_joint6"/>
+        <joint name="joint6_fake"/>
     </group>
     <!--GROUP STATES: Purpose: Define a named state for a particular group, in terms of joint values. This is useful to define states like 'folded arms'-->
     <group_state name="origin" group="manipulator">
-        <joint name="fake_joint6" value="0"/>
         <joint name="joint1" value="0"/>
         <joint name="joint2" value="0"/>
         <joint name="joint3" value="0"/>
         <joint name="joint4" value="0"/>
         <joint name="joint5" value="0"/>
+        <joint name="joint6_fake" value="0"/>
     </group_state>
     <group_state name="fold" group="manipulator">
-        <joint name="fake_joint6" value="0"/>
         <joint name="joint1" value="0"/>
         <joint name="joint2" value="-1.3493"/>
         <joint name="joint3" value="-1.3342"/>
         <joint name="joint4" value="0"/>
         <joint name="joint5" value="0"/>
+        <joint name="joint6_fake" value="0"/>
     </group_state>
     <group_state name="down" group="manipulator">
-        <joint name="fake_joint6" value="0"/>
         <joint name="joint1" value="5.0027e-05"/>
         <joint name="joint2" value="0.0989791"/>
         <joint name="joint3" value="-0.349207"/>
         <joint name="joint4" value="1.12263"/>
         <joint name="joint5" value="-5.34417e-05"/>
+        <joint name="joint6_fake" value="0"/>
     </group_state>
     <group_state name="fold2" group="manipulator">
-        <joint name="fake_joint6" value="0"/>
         <joint name="joint1" value="-1.98588e-05"/>
         <joint name="joint2" value="-0.79543"/>
         <joint name="joint3" value="-1.05912"/>
         <joint name="joint4" value="0.197481"/>
         <joint name="joint5" value="-1.28433e-05"/>
+        <joint name="joint6_fake" value="0"/>
     </group_state>
     <!--DISABLE COLLISIONS: By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
     <disable_collisions link1="base_link" link2="link1" reason="Adjacent"/>

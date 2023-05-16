@@ -191,7 +191,7 @@ Stephen Brawner (brawner@gmail.com)
             </geometry>
         </visual>
     </link>
-    <joint name="fake_joint6" type="continuous">
+    <joint name="joint6_fake" type="continuous">
         <parent link="link5" />
         <child link="fake_link6" />
         <axis xyz="0 0 1" />
@@ -253,12 +253,12 @@ Stephen Brawner (brawner@gmail.com)
             <robotNamespace>/</robotNamespace>
         </plugin>
     </gazebo>
-    <transmission name="trans_fake_joint6">
+    <transmission name="trans_joint6_fake">
         <type>transmission_interface/SimpleTransmission</type>
-        <joint name="fake_joint6">
+        <joint name="joint6_fake">
             <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
         </joint>
-        <actuator name="fake_joint6_motor">
+        <actuator name="joint6_fake_motor">
             <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
             <mechanicalReduction>1</mechanicalReduction>
         </actuator>
