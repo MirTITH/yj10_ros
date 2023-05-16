@@ -37,11 +37,11 @@ private:
 public:
     enum class ClamperState
     {
-        Stop,
-        Close,
-        Open,
-        Middle,
-        Error
+        Stop = 0,
+        Close = 1,
+        Open = 2,
+        Middle = 3,
+        Error = 4
     };
 
     /**

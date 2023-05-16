@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+    <node name="rqt_monitor" pkg="rqt_gui" type="rqt_gui" output="screen"
+        args="--perspective-file $(find yj10_driver)/config/rqt_monitor.perspective" />
+</launch>

@@ -37,7 +37,11 @@ rosdep install --rosdistro $ROS_DISTRO --ignore-src --from-paths src
 catkin_make
 ```
 
-source:
+## 使用说明
+
+仅列举常见使用方式，详细说明请查看各自软件包的 readme 文件
+
+使用软件包前，需要 source:
 
 对于bash用户:
 
@@ -51,51 +55,65 @@ source devel/setup.bash
 source devel/setup.zsh
 ```
 
-## 使用说明
-
-仅列举常见使用方式，详细说明请查看各自软件包的 readme 文件
-
 ### 显示机械臂的模型
 
-```bash
+```sh
 roslaunch yj10_description display.launch
 ```
 
 ### 使用 Gazebo 仿真，在 Rviz 中使用 Moveit
 
-```bash
+```sh
 roslaunch yj10_moveit_config demo_gazebo.launch
 ```
 
-### 连接机械臂，并复位到初始位姿
+### 连接机械臂
 
-这会同时启动 ros controller 并发布 joint state 关节信息
-
-```bash
-roslaunch yj10_driver yj10_control_HW.launch
-```
-
-### 连接实体机械臂，在 Rviz 中使用 Moveit
+**这会将机械臂复位到初始位姿**，同时启动 ros controller 并发布 joint state 关节信息
 
 #### 准备工作
 
 1. 使用串口连接机械臂
-2. 给机械臂供电，24V 直流
-3. 在 [yj10_driver.yaml](src/yj10_driver/config/yj10_driver.yaml) 中配置串口设备
+2. 在 [yj10_driver.yaml](src/yj10_driver/config/yj10_driver.yaml) 中配置串口设备
     > 请注意，关闭其中的 `fake_connect` 才会真正连接机械臂
+3. 赋予串口设备访问权限（以下方法二选一）
 
-#### 运行程序
+    ```sh
+        # 临时打开串口权限（注意将 /dev/ttyUSB0 改为对应串口）
+        sudo chmod 666 /dev/ttyUSB0
 
-执行以下命令，连接机械臂并运行 Rviz Moveit：
+        # 永久打开串口权限（注意把 `用户名` 换成你的用户名）
+        sudo usermod -aG dialout 用户名
+    ```
+
+4. 给机械臂供电，24V 直流（注意，给机械臂供电后，机械臂会自动在3秒后展开）
+
+#### 连接但不启动 Rviz
+
+```sh
+roslaunch yj10_driver yj10_connect.launch
+```
+
+#### 连接并启动 Rviz
+
+```sh
+roslaunch yj10_driver yj10_connect_rviz.launch
+```
+
+#### 开始控制机械臂
+
+详情见 [src/yj10_driver/readme.md](src/yj10_driver/readme.md)
+
+### 连接机械臂，在 Rviz 中使用 Moveit
+
+连接机械臂后，执行以下命令：
 
 ```bash
+roslaunch yj10_driver yj10_connect_rviz.launch
+# 开一个新终端：
 roslaunch yj10_moveit_config demo_hardware.launch
 ```
 
-### 键盘控制机械臂末端
+### 机械臂末端伺服
 
-先按照上一节进行准备工作
-
-#### 运行程序
-
-参见 [yj10_moveit_group/readme.md](src/yj10_moveit_group/readme.md)
+参见 [src/end_effector_servo](src/end_effector_servo)
