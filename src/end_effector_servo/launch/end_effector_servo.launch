@@ -1,5 +1,14 @@
 <?xml version="1.0"?>
 <launch>
+    <!-- Launch MoveIt -->
+    <include file="$(find yj10_moveit_config)/launch/demo.launch">
+        <!-- robot_description is loaded by yj10_connect.launch -->
+        <arg name="load_robot_description" value="false" />
+        <arg name="moveit_controller_manager" value="ros_control" />
+        <arg name="use_rviz" value="false" />
+    </include>
+
+    <!-- Launch end effector servo -->
     <arg name="urdf_param" default="/robot_description" />
     <arg name="chain_start" default="world" />
     <arg name="chain_end" default="fake_link6" />
@@ -8,7 +17,7 @@
     <arg name="rot_z_link_name" default="link1" />
     <arg name="ik_timeout" default="0.01" />
     <arg name="ik_error" default="1e-5" />
-    <arg name="ik_loop_rate" default="20" />
+    <arg name="ik_loop_rate" default="10" />
     <!-- The ik_solve_type can be one of the following:
     Speed: returns very quickly the first solution found
     Distance: runs for the full timeout_in_secs, then returns the solution that minimizes SSE from the
@@ -19,7 +28,7 @@
     values of the Jacobian. -->
     <arg name="ik_solve_type" default="Distance" />
     <arg name="joint_states_topic" default="/joint_states" />
-    <arg name="controller_command_topic" default="/joint_group_position_controller/command" />
+    <arg name="joint_group_position_controller" default="/joint_group_position_controller" />
     <arg name="controller_joint_num" default="6" />
 
     <!-- You can publish to this topic to control the end effector -->
@@ -45,7 +54,7 @@
         <param name="ik_solve_type" value="$(arg ik_solve_type)" />
         <param name="ik_loop_rate" value="$(arg ik_loop_rate)" />
         <param name="joint_states_topic" value="$(arg joint_states_topic)" />
-        <param name="controller_command_topic" value="$(arg controller_command_topic)" />
+        <param name="joint_group_position_controller" value="$(arg joint_group_position_controller)" />
         <param name="controller_joint_num" value="$(arg controller_joint_num)" />
         <param name="end_effector_velocity_topic" value="$(arg end_effector_velocity_topic)" />
         <param name="max_topic_interval" value="$(arg max_topic_interval)" />

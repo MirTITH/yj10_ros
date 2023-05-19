@@ -12,12 +12,28 @@ roslaunch end_effector_servo end_effector_servo.launch
 
 ### 使用方法
 
+#### 末端速度伺服
+
 向 `/end_effector_servo/end_effector_velocity` 连续发布末端速度指令即可
 
 Tips: 可以执行以下命令打开 rqt：
 
 ```sh
 roslaunch yj10_driver rqt_monitor.launch
+```
+
+#### 运行到给定位置
+
+向 `/end_effector_servo/move_to` 发送要运动到的位置
+
+在 yj10_moveit_config/config/yj10.srdf 中指定位置和对应的名称，然后发送位置的名称即可
+
+注意：虽然这个功能带有碰撞规避，但不会考虑夹爪夹着的东西
+
+例如：
+
+```sh
+rostopic pub /end_effector_servo/move_to std_msgs/String "data: 'fold'"
 ```
 
 ### 注意事项

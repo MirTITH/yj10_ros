@@ -7,57 +7,17 @@
 #include <sensor_msgs/JointState.h>
 #include <thread>
 #include <controller_manager/controller_manager.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <termios.h>
 #include <mutex>
 #include <atomic>
 #include <array>
 #include <std_srvs/Empty.h>
-
-// 用于保护全局变量线程安全
-template <typename T>
-class SafeGlobal
-{
-public:
-    SafeGlobal() {}
-    SafeGlobal(const T &value) : data_(value) {}
-
-    T get()
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return data_;
-    }
-
-    void set(const T &value)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        data_ = value;
-    }
-
-    void lock()
-    {
-        mutex_.lock();
-    }
-
-    void unlock()
-    {
-        mutex_.unlock();
-    }
-
-    T &data()
-    {
-        return data_;
-    }
-
-private:
-    T data_;
-    std::mutex mutex_;
-};
+#include <moveit/move_group_interface/move_group_interface.h>
+#include "safe_global.hpp"
+#include <std_msgs/String.h>
+#include <controller_manager_msgs/SwitchController.h>
 
 std::string ChainStart, ChainEnd, RotXLinkName, RotYLinkName, RotZLinkName;
+std::string joint_group_position_controller;
 SafeGlobal<std::vector<double>> JointPositions;
 tf2_ros::Buffer tfBuffer;
 std::atomic<bool> HasGotJointPos(false);
@@ -73,6 +33,63 @@ SafeGlobal<std::array<double, 3>> VelocityRpy = {};
 
 SafeGlobal<geometry_msgs::Transform> RotXLinkTransform;
 SafeGlobal<geometry_msgs::Transform> RotXLinkToRotYLink, RotYLinkToRotZLink, RotZLinkToEeLink;
+
+moveit::planning_interface::MoveGroupInterface *volatile Arm = nullptr;
+
+class ControlState
+{
+public:
+    enum class State
+    {
+        Idle,
+        // PositionController,
+        MoveIt
+    };
+
+private:
+    std::mutex mux_;
+    State state_;
+
+public:
+    ControlState(State state) : state_(state){};
+
+    State GetNowState() const
+    {
+        return state_;
+    }
+
+    void SwitchToAndLock(State new_state)
+    {
+        mux_.lock();
+        state_ = new_state;
+    }
+
+    void SwitchToIdleAndUnlock()
+    {
+        if (state_ == State::MoveIt)
+        {
+            controller_manager_msgs::SwitchController req;
+            req.request.start_controllers.push_back("joint_group_position_controller");
+            req.request.stop_controllers.push_back("position_trajectory_controller");
+            req.request.strictness = controller_manager_msgs::SwitchController::Request::BEST_EFFORT;
+            ros::service::call("/controller_manager/switch_controller", req);
+        }
+        state_ = State::Idle;
+        mux_.unlock();
+    }
+
+    void LockState()
+    {
+        mux_.lock();
+    }
+
+    void UnlockState()
+    {
+        mux_.unlock();
+    }
+};
+
+ControlState controlState(ControlState::State::Idle);
 
 KDL::Frame ConvertToKdlFrame(geometry_msgs::Transform transform)
 {
@@ -98,40 +115,6 @@ KDL::JntArray ConvertToKdlJntArray(std::vector<double> vec)
     }
     return result;
 }
-
-class KeyboardAsync
-{
-private:
-    struct termios oldt, newt;
-    int flags;
-
-public:
-    KeyboardAsync()
-    {
-        tcgetattr(STDIN_FILENO, &oldt);
-        newt = oldt;
-        newt.c_lflag &= ~(ICANON | ECHO);
-        tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-
-        flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-        fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-    }
-
-    /**
-     * @brief 异步读取键盘
-     *
-     * @return int 如果没读到，返回 EOF
-     */
-    int Read()
-    {
-        return getchar();
-    }
-
-    ~KeyboardAsync()
-    {
-        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    }
-};
 
 bool NeedUpdate()
 {
@@ -178,118 +161,6 @@ void PublishJoints(ros::Publisher &pub, KDL::JntArray joint_pos, int controller_
         pub.publish(pos_msg);
     }
 }
-
-/* void TargetSetter(ros::NodeHandle *node, std::string start_chain, std::string end_chain, std::string rot_link_name)
-{
-    KeyboardAsync keyboard;
-
-    tf2_ros::TransformListener tfListener();
-    geometry_msgs::TransformStamped rot_link;
-    geometry_msgs::TransformStamped rot_link_to_ee_link;
-
-    ros::ServiceClient client_close = node->serviceClient<std_srvs::Empty>("/clamp/close");
-    ros::ServiceClient client_open = node->serviceClient<std_srvs::Empty>("/clamp/open");
-    ros::ServiceClient client_stop = node->serviceClient<std_srvs::Empty>("/clamp/stop");
-    std_srvs::Empty srv;
-
-    std::array<double, 3> velocity_pos = {};
-    std::array<double, 3> velocity_rpy = {};
-
-    auto UpdateExpEEPos = [&]()
-    {
-        KDL::Frame temp_pos = ConvertToKdlFrame(rot_link.transform);
-        auto period = JointStateRcvPeriod.load();
-        for (size_t i = 0; i < 3; i++)
-        {
-            temp_pos.p(i) += velocity_pos.at(i) * period;
-        }
-
-        // 变换矩阵运算
-        temp_pos.M = temp_pos.M * KDL::Rotation::RPY(velocity_rpy.at(0) * period, velocity_rpy.at(1) * period, velocity_rpy.at(2) * period);
-        temp_pos = temp_pos * ConvertToKdlFrame(rot_link_to_ee_link.transform);
-        ExpEEPos.set(temp_pos);
-    };
-
-    ROS_INFO_STREAM("You can use w,s,a,d to move");
-    ROS_INFO_STREAM("You can use i,k,j,l to rotate");
-    ROS_INFO_STREAM("You can use o,p,[ to open,close,stop the clamp");
-
-    ros::Rate rate(100);
-
-    while (node->ok())
-    {
-        auto ch = keyboard.Read();
-        rot_link = tfBuffer.lookupTransform(start_chain, rot_link_name, ros::Time(0), ros::Duration(1));
-        rot_link_to_ee_link = tfBuffer.lookupTransform(rot_link_name, end_chain, ros::Time(0), ros::Duration(1));
-
-        velocity_pos.fill(0);
-        velocity_rpy.fill(0);
-
-        switch (ch)
-        {
-        case 'w':
-            velocity_pos.at(1) = 0.2;
-            UpdateExpEEPos();
-            break;
-        case 's':
-            velocity_pos.at(1) = -0.2;
-            UpdateExpEEPos();
-            break;
-        case 'a':
-            velocity_pos.at(0) = -0.2;
-            UpdateExpEEPos();
-            break;
-        case 'd':
-            velocity_pos.at(0) = 0.2;
-            UpdateExpEEPos();
-            break;
-        case 'r':
-            velocity_pos.at(2) = 0.2;
-            UpdateExpEEPos();
-            break;
-        case 'f':
-            velocity_pos.at(2) = -0.2;
-            UpdateExpEEPos();
-            break;
-        case 'j':
-            velocity_rpy.at(1) = -1;
-            UpdateExpEEPos();
-            break;
-        case 'l':
-            velocity_rpy.at(1) = 1;
-            UpdateExpEEPos();
-            break;
-        case 'i':
-            velocity_rpy.at(0) = 1;
-            UpdateExpEEPos();
-            break;
-        case 'k':
-            velocity_rpy.at(0) = -1;
-            UpdateExpEEPos();
-            break;
-        case 'o':
-            client_open.call(srv);
-            break;
-        case 'p':
-            client_close.call(srv);
-            break;
-        case '[':
-            client_stop.call(srv);
-            break;
-
-        default:
-            break;
-        }
-
-        if (ch != EOF)
-        {
-            printf("%c", ch);
-        }
-
-        rate.sleep();
-    }
-}
- */
 
 void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
 {
@@ -341,43 +212,50 @@ void EndEffectorVelocityCallback(const geometry_msgs::Twist &msg)
     VelocityRpy.set(velocity_rpy);
 }
 
-void ServoThread(ros::NodeHandle *nh, double loop_rate)
+void MoveToCallback(const std_msgs::String &msg)
 {
-    ros::Rate rate(loop_rate);
-
-    bool has_updated = true;
-
-    while (nh->ok())
+    if (Arm != nullptr)
     {
-        if (NeedUpdate())
+        controlState.SwitchToAndLock(ControlState::State::MoveIt);
+        if (Arm->setNamedTarget(msg.data) == true)
         {
-            has_updated = true;
-            auto delta_src = ros::Time::now().toSec() - LastMsgTime.load();
-            if (delta_src < MaxTopicInterval)
-            {
-                UpdateExpEEPos(VelocityPos.get(), VelocityRpy.get());
-            }
-            else
-            {
-                if (has_updated)
-                {
-                    has_updated = false;
-                    ROS_WARN_STREAM("Did not get msg for " << delta_src << "sec. Stop.");
+            Arm->move();
+        }
 
-                    VelocityPos.lock();
-                    VelocityPos.data().fill(0);
-                    VelocityPos.unlock();
-                    VelocityRpy.lock();
-                    VelocityRpy.data().fill(0);
-                    VelocityRpy.unlock();
-                }
-            }
+        controlState.SwitchToIdleAndUnlock();
+    }
+}
+
+void Servo()
+{
+    bool has_updated = true;
+    if (NeedUpdate())
+    {
+        has_updated = true;
+        auto delta_src = ros::Time::now().toSec() - LastMsgTime.load();
+        if (delta_src < MaxTopicInterval)
+        {
+            UpdateExpEEPos(VelocityPos.get(), VelocityRpy.get());
         }
         else
         {
-            ExpEEPos.set(NowEEPos.get());
+            if (has_updated)
+            {
+                has_updated = false;
+                ROS_WARN_STREAM("Did not get msg for " << delta_src << "sec. Stop.");
+
+                VelocityPos.lock();
+                VelocityPos.data().fill(0);
+                VelocityPos.unlock();
+                VelocityRpy.lock();
+                VelocityRpy.data().fill(0);
+                VelocityRpy.unlock();
+            }
         }
-        rate.sleep();
+    }
+    else
+    {
+        ExpEEPos.set(NowEEPos.get());
     }
 }
 
@@ -393,9 +271,9 @@ int main(int argc, char **argv)
     double ik_error;
     double ik_loop_rate;
 
-    std::string joint_states_topic, controller_command_topic;
+    std::string joint_states_topic;
     int controller_joint_num;
-    std::string end_effector_velocity_topic;
+    std::string end_effector_velocity_topic, move_to_topic;
 
     node.param("chain_start", ChainStart, std::string("world"));
     node.param("chain_end", ChainEnd, std::string("fake_link6"));
@@ -408,9 +286,10 @@ int main(int argc, char **argv)
     node.param("ik_solve_type", ik_solve_type, std::string("Speed"));
     node.param("ik_loop_rate", ik_loop_rate, 10.0);
     node.param("joint_states_topic", joint_states_topic, std::string("/joint_states"));
-    node.param("controller_command_topic", controller_command_topic, std::string("/joint_group_position_controller/command"));
+    node.param("joint_group_position_controller", joint_group_position_controller, std::string("/joint_group_position_controller"));
     node.param("controller_joint_num", controller_joint_num, 6);
     node.param("end_effector_velocity_topic", end_effector_velocity_topic, std::string("end_effector_velocity"));
+    node.param("move_to_topic", move_to_topic, std::string("move_to"));
     node.param("max_topic_interval", MaxTopicInterval, 0.3);
 
     ROS_INFO_STREAM("node.getNamespace(): " << node.getNamespace());
@@ -425,7 +304,7 @@ int main(int argc, char **argv)
     ROS_INFO_STREAM("ik_error: " << ik_error);
     ROS_INFO_STREAM("ik_loop_rate: " << ik_loop_rate);
     ROS_INFO_STREAM("joint_states_topic: " << joint_states_topic);
-    ROS_INFO_STREAM("controller_command_topic: " << controller_command_topic);
+    ROS_INFO_STREAM("joint_group_position_controller: " << joint_group_position_controller);
     ROS_INFO_STREAM("controller_joint_num: " << controller_joint_num);
     ROS_INFO_STREAM("listen to: " << end_effector_velocity_topic);
     ROS_INFO_STREAM("max_topic_interval: " << MaxTopicInterval);
@@ -436,10 +315,12 @@ int main(int argc, char **argv)
     // 获取期望的末端执行器速度
     ros::Subscriber ee_velocity_sub = node.subscribe(end_effector_velocity_topic, 1, EndEffectorVelocityCallback);
 
+    ros::Subscriber move_to_sub = node.subscribe(move_to_topic, 1, MoveToCallback);
+
     // 关节控制器
     ros::AsyncSpinner spinner(4); // Use 4 threads
     spinner.start();
-    ros::Publisher pos_pub = node.advertise<std_msgs::Float64MultiArray>(controller_command_topic, 1);
+    ros::Publisher pos_pub = node.advertise<std_msgs::Float64MultiArray>(joint_group_position_controller.append("/command"), 1);
 
     if (ChainStart == "" || ChainEnd == "")
     {
@@ -543,10 +424,21 @@ int main(int argc, char **argv)
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
-    // std::thread key_thread(TargetSetter, &node, ChainStart, ChainEnd, RotLinkName);
-    std::thread servo_thread(ServoThread, &node, ik_loop_rate);
+    // MoveIt
+    // 初始化需要使用move group控制的机械臂中的arm group
+    static moveit::planning_interface::MoveGroupInterface arm("manipulator");
 
-    // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    // 设置目标位置所使用的参考坐标系
+    arm.setPoseReferenceFrame("base_link");
+
+    // 当运动规划失败后，允许重新规划
+    arm.allowReplanning(true);
+
+    // 设置位置(单位：米)和姿态（单位：弧度）的允许误差
+    arm.setGoalPositionTolerance(0.001);
+    arm.setGoalOrientationTolerance(0.005);
+
+    Arm = &arm;
 
     ros::Rate rate(ik_loop_rate);
 
@@ -571,6 +463,8 @@ int main(int argc, char **argv)
             NowEEPos.set(ConvertToKdlFrame(transformEeLink.transform));
             joint_search_start_pos = ConvertToKdlJntArray(JointPositions.get());
 
+            Servo();
+
             // 反运动学
             int rc = ik_solver.CartToJnt(joint_search_start_pos, ExpEEPos.get(), joint_pos_result);
             if (rc < 0)
@@ -593,7 +487,7 @@ int main(int argc, char **argv)
     }
 
     // key_thread.join();
-    servo_thread.join();
+    // servo_thread.join();
     ros::waitForShutdown();
 
     return 0;

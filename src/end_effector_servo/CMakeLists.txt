@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   trac_ik_lib
   tf2_ros
+  moveit_ros_planning_interface
 )
 
 ## System dependencies are found with CMake's conventions
@@ -108,7 +109,7 @@ find_package(orocos_kdl REQUIRED)
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES end_effector_servo
- CATKIN_DEPENDS roscpp trac_ik_lib tf2_ros
+ CATKIN_DEPENDS roscpp trac_ik_lib tf2_ros moveit_ros_planning_interface
  DEPENDS Boost orocos_kdl 
 )
 
