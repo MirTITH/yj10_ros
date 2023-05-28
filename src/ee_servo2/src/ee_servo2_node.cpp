@@ -29,7 +29,8 @@ double ik_error;
 
 // Global values
 // std::atomic<double> JointStateRcvPeriod(0);
-TRAC_IK::TRAC_IK *ik_solver;
+TRAC_IK::TRAC_IK *ik_solver; // 逆运动学解算
+KDL::ChainFkSolverPos_recursive *fk_solver; // 正运动学解算
 
 template <typename T>
 bool LoadParam(ros::NodeHandle &node, const std::string &param_name, T &param_val, const T &default_val)
@@ -59,6 +60,16 @@ void LoadAllParam(ros::NodeHandle &node)
     LoadParam(node, "ik_error", ik_error, 1e-5);
 }
 
+KDL::JntArray ConvertToKdlJntArray(std::vector<double> vec)
+{
+    KDL::JntArray result(vec.size());
+    for (size_t i = 0; i < vec.size(); i++)
+    {
+        result(i) = vec.at(i);
+    }
+    return result;
+}
+
 void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
 {
     static ros::Time last_time = ros::Time::now();
@@ -69,6 +80,32 @@ void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
     ROS_INFO("JointState received period: %fs", jnt_state_period);
     // JointPositions.set(msg->position);
     // HasGotJointPos = true;
+}
+
+TRAC_IK::SolveType GetSolveType(std::string &solver_type, TRAC_IK::SolveType default_type = TRAC_IK::Speed)
+{
+    TRAC_IK::SolveType result;
+    if (ik_solve_type == "Speed")
+    {
+        result = TRAC_IK::Speed;
+    }
+    else if (ik_solve_type == "Distance")
+    {
+        result = TRAC_IK::Distance;
+    }
+    else if (ik_solve_type == "Manip1")
+    {
+        result = TRAC_IK::Manip1;
+    }
+    else if (ik_solve_type == "Manip2")
+    {
+        result = TRAC_IK::Manip2;
+    }
+    else
+    {
+        ROS_WARN_STREAM("Invalid ik_solve_type '" << ik_solve_type << "'");
+    }
+    return result;
 }
 
 KDL::Chain GenerateFakeKdlChain(std::string &robot_desc_string, bool add_fake_x, bool add_fake_y, bool add_fake_z)
@@ -117,34 +154,11 @@ void InitTracIk()
         ROS_FATAL("Missing chain info in launch file");
         exit(-1);
     }
+
     ros::NodeHandle node;
     std::string robot_desc_string;
     node.param(urdf_param, robot_desc_string, std::string());
     auto my_chain = GenerateFakeKdlChain(robot_desc_string, false, true, true);
-
-    // Trac IK
-    TRAC_IK::SolveType solve_type = TRAC_IK::Distance;
-
-    if (ik_solve_type == "Speed")
-    {
-        solve_type = TRAC_IK::Speed;
-    }
-    else if (ik_solve_type == "Distance")
-    {
-        solve_type = TRAC_IK::Distance;
-    }
-    else if (ik_solve_type == "Manip1")
-    {
-        solve_type = TRAC_IK::Manip1;
-    }
-    else if (ik_solve_type == "Manip2")
-    {
-        solve_type = TRAC_IK::Manip2;
-    }
-    else
-    {
-        ROS_WARN_STREAM("Invalid ik_solve_type '" << ik_solve_type << "'");
-    }
 
     // 关节限位
     KDL::JntArray q_min(my_chain.getNrOfJoints());
@@ -164,19 +178,8 @@ void InitTracIk()
         q_max.data(i) = M_PI_2;
     }
 
-    ROS_INFO_STREAM("q_min: " << q_min.data);
-    ROS_INFO_STREAM("q_max: " << q_max.data);
-
-    ROS_INFO("my_chain:");
-    ROS_INFO("Using %d joints", my_chain.getNrOfJoints());
-    ROS_INFO("NumberOfSegments: %d", my_chain.getNrOfSegments());
-    for (auto segment : my_chain.segments)
-    {
-        ROS_INFO_STREAM(segment.getName());
-        ROS_INFO_STREAM("  Joint name: " << segment.getJoint().getName() << " Type: " << segment.getJoint().getTypeName());
-        ROS_INFO_STREAM("  x: " << segment.getJoint().JointAxis().data[0] << "  y: " << segment.getJoint().JointAxis().data[1] << "  z: " << segment.getJoint().JointAxis().data[2]);
-    }
-
+    // Trac IK
+    auto solve_type = GetSolveType(ik_solve_type, TRAC_IK::Distance);
     // % NOTE: The last arguments to the constructors are optional.
     // % The type can be one of the following:
     // % Speed: returns very quickly the first solution found
@@ -186,6 +189,7 @@ void InitTracIk()
     // ik_solver = new TRAC_IK::TRAC_IK(chain_start, chain_end, urdf_param, ik_timeout, ik_error, solve_type);
     ik_solver = new TRAC_IK::TRAC_IK(my_chain, q_min, q_max, ik_timeout, ik_error, solve_type);
 
+    // 检测是否合理
     KDL::Chain chain;
     if (!ik_solver->getKDLChain(chain))
     {
