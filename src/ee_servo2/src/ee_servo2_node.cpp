@@ -33,6 +33,9 @@ int controller_joint_num;
 TRAC_IK::TRAC_IK *ik_solver;                // 逆运动学解算
 KDL::ChainFkSolverPos_recursive *fk_solver; // 正运动学解算
 KDL::Chain fake_chain;                      // 包括假关节的关节链
+std::array<double, 3> velocity_pos;
+std::array<double, 3> velocity_rpy; // 0: r,绕 x 旋转；1: p,绕 y 旋转；2: y,绕 z 旋转；
+double jnt_state_period = 0;
 
 ros::Publisher pos_pub;
 
@@ -130,27 +133,42 @@ void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
 {
     static ros::Time last_time = ros::Time::now();
     ros::Time current_time = ros::Time::now();
-    double jnt_state_period = (current_time - last_time).toSec();
+    jnt_state_period = (current_time - last_time).toSec();
     last_time = current_time;
-    // JointStateRcvPeriod.store((current_time - last_time).toSec());
-    // ROS_INFO("JointState received period: %fs", jnt_state_period);
+
+    // 避免长时间没收到 joint_states 导致解算出的位置变化异常大
+    if (jnt_state_period > 1)
+    {
+        ROS_WARN_STREAM("last joint_states topic got more than 1s ago");
+        return;
+    }
 
     auto now_joint_pos = ConvertToKdlJntArray(msg->position);
     ROS_INFO_STREAM("now_joint_pos: " << now_joint_pos.data);
     auto fake_joint_pos = ConvertToFakeJntArray(now_joint_pos, fake_chain.getNrOfJoints());
     // ROS_INFO_STREAM("fake_joint_pos: " << fake_joint_pos.data);
-    // JointPositions.set(msg->position);
-    // HasGotJointPos = true;
+
     KDL::Frame now_ee_pos; // 当前末端的位置（解算的末端，不一定是整个机械臂的末端）
     fk_solver->JntToCart(fake_joint_pos, now_ee_pos);
     // ROS_INFO_STREAM("now_ee_pos: " << now_ee_pos.p.data[0] << " " << now_ee_pos.p.data[1] << " " << now_ee_pos.p.data[2]);
 
+    // 计算新的末端位置
+    for (size_t i = 0; i < 3; i++)
+    {
+        now_ee_pos.p.data[i] += velocity_pos.at(i) * jnt_state_period;
+    }
+
     // IK
-    now_ee_pos.p.data[2] -= 0.01;
     KDL::JntArray ik_result;
     ik_solver->CartToJnt(fake_joint_pos, now_ee_pos, ik_result);
 
     auto result_joint_pos = ConvertToRealJntArray(ik_result, now_joint_pos);
+
+    // 旋转
+    result_joint_pos.data(3) += velocity_rpy.at(0) * jnt_state_period; // 腕关节
+    result_joint_pos.data(4) += velocity_rpy.at(1) * jnt_state_period; // 夹爪关节
+    result_joint_pos.data(0) += velocity_rpy.at(2) * jnt_state_period; // 基座关节
+
     ROS_INFO_STREAM("result_joint_pos: " << result_joint_pos.data);
 
     PublishJoints(pos_pub, result_joint_pos, controller_joint_num);
@@ -301,16 +319,31 @@ void InitTracIk()
     ROS_INFO_STREAM("upper joint limits: " << ul.data);
 }
 
+void EndEffectorVelocityCallback(const geometry_msgs::Twist &msg)
+{
+    velocity_pos.at(0) = msg.linear.x;
+    velocity_pos.at(1) = msg.linear.y;
+    velocity_pos.at(2) = msg.linear.z;
+    velocity_rpy.at(0) = msg.angular.x;
+    velocity_rpy.at(1) = msg.angular.y;
+    velocity_rpy.at(2) = msg.angular.z;
+    ROS_INFO_STREAM("Got ee velocity");
+}
+
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "end_effector_servo_node");
+    ros::init(argc, argv, "end_effector_servo");
     ros::NodeHandle node("~");
     LoadAllParam(node);
 
-    // 获取joint_state
+    // 获取 joint_state
     ros::Subscriber joint_state_sub = node.subscribe(joint_states_topic, 1, JointStateCallback);
 
+    // 用于控制关节位置
     pos_pub = node.advertise<std_msgs::Float64MultiArray>(joint_group_position_controller.append("/command"), 1);
+
+    // 由用户发布，期望的末端执行器速度
+    ros::Subscriber ee_velocity_sub = node.subscribe(end_effector_velocity_topic, 1, EndEffectorVelocityCallback);
 
     InitTracIk();
 
