@@ -27,6 +27,7 @@ std::string ik_solve_type;
 double ik_timeout;
 double ik_error;
 int controller_joint_num;
+double loop_rate; // 循环频率 Hz
 
 // Global values
 // std::atomic<double> JointStateRcvPeriod(0);
@@ -36,7 +37,12 @@ KDL::Chain fake_chain;                      // 包括假关节的关节链
 std::array<double, 3> velocity_pos;
 std::array<double, 3> velocity_rpy; // 0: r,绕 x 旋转；1: p,绕 y 旋转；2: y,绕 z 旋转；
 double jnt_state_period = 0;
+double last_ee_velocity_topic_time = 0;
+double max_topic_interval;
+KDL::JntArray now_joint_pos;    // 当前关节位置
+KDL::JntArray cached_joint_pos; // 缓存的关节位置（因为关节状态的读取周期较长，因此如果直接从当前关节状态解算位置偏移量，会因为有延迟导致震荡）
 
+// Publisher
 ros::Publisher pos_pub;
 
 template <typename T>
@@ -66,6 +72,8 @@ void LoadAllParam(ros::NodeHandle &node)
     LoadParam(node, "ik_timeout", ik_timeout, 0.005);
     LoadParam(node, "ik_error", ik_error, 1e-5);
     LoadParam(node, "controller_joint_num", controller_joint_num, 6);
+    LoadParam(node, "loop_rate", loop_rate, 10.0);
+    LoadParam(node, "max_topic_interval", max_topic_interval, 0.2);
 }
 
 /**
@@ -88,7 +96,7 @@ void PublishJoints(ros::Publisher &pub, KDL::JntArray joint_pos, int controller_
     pub.publish(pos_msg);
 }
 
-KDL::JntArray ConvertToKdlJntArray(std::vector<double> vec)
+KDL::JntArray ConvertToKdlJntArray(const std::vector<double> &vec)
 {
     KDL::JntArray result(vec.size());
     for (size_t i = 0; i < vec.size(); i++)
@@ -118,15 +126,57 @@ KDL::JntArray ConvertToFakeJntArray(const KDL::JntArray &real_joints, unsigned i
     return fake_joints;
 }
 
+int real_joints_rows;
+
 KDL::JntArray ConvertToRealJntArray(const KDL::JntArray &fake_joints, const KDL::JntArray &real_joints)
 {
     KDL::JntArray result = real_joints;
+    real_joints_rows = real_joints.rows();
     auto num_of_effective_joints = real_joints.rows() - 3;
     for (size_t i = 0; i < num_of_effective_joints; i++)
     {
         result.data(i) = fake_joints.data(i);
     }
     return result;
+}
+
+/**
+ * @brief 伺服
+ *
+ * @param servo_joint_pos 伺服开始的关节位置
+ * @param servo_period 伺服函数调用周期
+ * @return KDL::JntArray 计算结果
+ */
+KDL::JntArray Servo(KDL::JntArray servo_joint_pos, double servo_period)
+{
+    auto fake_joint_pos = ConvertToFakeJntArray(servo_joint_pos, fake_chain.getNrOfJoints());
+
+    KDL::Frame now_ee_pos; // 当前末端的位置（解算的末端，不一定是整个机械臂的末端）
+    fk_solver->JntToCart(fake_joint_pos, now_ee_pos);
+    // ROS_INFO_STREAM("now_ee_pos: " << now_ee_pos.p.data[0] << " " << now_ee_pos.p.data[1] << " " << now_ee_pos.p.data[2]);
+
+    // 计算新的末端位置
+    for (size_t i = 0; i < 3; i++)
+    {
+        now_ee_pos.p.data[i] += velocity_pos.at(i) * servo_period;
+    }
+    ROS_INFO_STREAM("now_ee_pos: " << now_ee_pos.p.data[0] << " " << now_ee_pos.p.data[1] << " " << now_ee_pos.p.data[2]);
+
+    // IK
+    KDL::JntArray ik_result;
+    ik_solver->CartToJnt(fake_joint_pos, now_ee_pos, ik_result);
+
+    auto result_joint_pos = ConvertToRealJntArray(ik_result, servo_joint_pos);
+
+    // 旋转
+    result_joint_pos.data(3) += velocity_rpy.at(0) * servo_period; // 腕关节
+    result_joint_pos.data(4) += velocity_rpy.at(1) * servo_period; // 夹爪关节
+    result_joint_pos.data(0) += velocity_rpy.at(2) * servo_period; // 基座关节
+
+    // ROS_INFO_STREAM("result_joint_pos: " << result_joint_pos.data);
+    return result_joint_pos;
+
+    // PublishJoints(pos_pub, result_joint_pos, controller_joint_num);
 }
 
 void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
@@ -140,38 +190,9 @@ void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
     if (jnt_state_period > 1)
     {
         ROS_WARN_STREAM("last joint_states topic got more than 1s ago");
-        return;
     }
 
-    auto now_joint_pos = ConvertToKdlJntArray(msg->position);
-    ROS_INFO_STREAM("now_joint_pos: " << now_joint_pos.data);
-    auto fake_joint_pos = ConvertToFakeJntArray(now_joint_pos, fake_chain.getNrOfJoints());
-    // ROS_INFO_STREAM("fake_joint_pos: " << fake_joint_pos.data);
-
-    KDL::Frame now_ee_pos; // 当前末端的位置（解算的末端，不一定是整个机械臂的末端）
-    fk_solver->JntToCart(fake_joint_pos, now_ee_pos);
-    // ROS_INFO_STREAM("now_ee_pos: " << now_ee_pos.p.data[0] << " " << now_ee_pos.p.data[1] << " " << now_ee_pos.p.data[2]);
-
-    // 计算新的末端位置
-    for (size_t i = 0; i < 3; i++)
-    {
-        now_ee_pos.p.data[i] += velocity_pos.at(i) * jnt_state_period;
-    }
-
-    // IK
-    KDL::JntArray ik_result;
-    ik_solver->CartToJnt(fake_joint_pos, now_ee_pos, ik_result);
-
-    auto result_joint_pos = ConvertToRealJntArray(ik_result, now_joint_pos);
-
-    // 旋转
-    result_joint_pos.data(3) += velocity_rpy.at(0) * jnt_state_period; // 腕关节
-    result_joint_pos.data(4) += velocity_rpy.at(1) * jnt_state_period; // 夹爪关节
-    result_joint_pos.data(0) += velocity_rpy.at(2) * jnt_state_period; // 基座关节
-
-    ROS_INFO_STREAM("result_joint_pos: " << result_joint_pos.data);
-
-    PublishJoints(pos_pub, result_joint_pos, controller_joint_num);
+    now_joint_pos = ConvertToKdlJntArray(msg->position);
 }
 
 TRAC_IK::SolveType GetSolveType(std::string &solver_type, TRAC_IK::SolveType default_type = TRAC_IK::Speed)
@@ -264,7 +285,7 @@ void InitTracIk()
     ros::NodeHandle node;
     std::string robot_desc_string;
     node.param(urdf_param, robot_desc_string, std::string());
-    fake_chain = GenerateFakeKdlChain(robot_desc_string, false, true, true);
+    fake_chain = GenerateFakeKdlChain(robot_desc_string, false, false, false);
 
     // 关节限位
     KDL::JntArray q_min(fake_chain.getNrOfJoints());
@@ -315,19 +336,58 @@ void InitTracIk()
         return;
     }
 
-    ROS_INFO_STREAM("lower joint limits: " << ll.data);
-    ROS_INFO_STREAM("upper joint limits: " << ul.data);
+    ROS_INFO_STREAM("lower joint limits:\n"
+                    << ll.data);
+    ROS_INFO_STREAM("upper joint limits:\n"
+                    << ul.data);
 }
 
 void EndEffectorVelocityCallback(const geometry_msgs::Twist &msg)
 {
+    last_ee_velocity_topic_time = ros::Time::now().toSec();
+
     velocity_pos.at(0) = msg.linear.x;
     velocity_pos.at(1) = msg.linear.y;
     velocity_pos.at(2) = msg.linear.z;
     velocity_rpy.at(0) = msg.angular.x;
     velocity_rpy.at(1) = msg.angular.y;
     velocity_rpy.at(2) = msg.angular.z;
-    ROS_INFO_STREAM("Got ee velocity");
+}
+
+void UpdateCachedJntPos(const std::vector<double> &position)
+{
+    cached_joint_pos = ConvertToKdlJntArray(position);
+}
+
+void UpdateCachedJntPos(const KDL::JntArray &position)
+{
+    cached_joint_pos = position;
+}
+
+bool IsVelocityZero()
+{
+    for (auto &vec : velocity_pos)
+    {
+        if (vec != 0)
+        {
+            return true;
+        }
+    }
+
+    for (auto &vec : velocity_rpy)
+    {
+        if (vec != 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void StopArm()
+{
+    ROS_INFO_STREAM("Stopping Arm");
+    PublishJoints(pos_pub, now_joint_pos, controller_joint_num); // 刹车
 }
 
 int main(int argc, char **argv)
@@ -347,6 +407,60 @@ int main(int argc, char **argv)
 
     InitTracIk();
 
-    ros::spin();
+    ROS_INFO_STREAM("Waiting for joint_states");
+    auto msg = ros::topic::waitForMessage<sensor_msgs::JointState>(joint_states_topic);
+    now_joint_pos = ConvertToKdlJntArray(msg->position);
+    UpdateCachedJntPos(now_joint_pos);
+    ROS_INFO_STREAM("Start servo");
+
+    double delta_sec;
+
+    bool last_need_servo_state = false;
+
+    // msg.get()
+    ros::Rate rate(loop_rate);
+
+    while (node.ok())
+    {
+        ros::spinOnce();
+
+        auto need_servo = IsVelocityZero();
+
+        // 是否发生状态切换
+        if (last_need_servo_state != need_servo)
+        {
+            // 在切换 servo state 的时候更新到实际位置
+            last_need_servo_state = need_servo;
+            UpdateCachedJntPos(now_joint_pos);
+
+            if (need_servo == false)
+            {
+                StopArm();
+            }
+        }
+
+        if (need_servo)
+        {
+            // 超时判断
+            delta_sec = ros::Time::now().toSec() - last_ee_velocity_topic_time;
+            if (delta_sec > max_topic_interval)
+            {
+                ROS_WARN_STREAM("Did not get msg for " << delta_sec << "sec. Stop.");
+                velocity_rpy.fill(0);
+                velocity_pos.fill(0);
+                need_servo = false;
+            }
+            else
+            {
+                // Servo
+                auto servo_result = Servo(cached_joint_pos, 1 / loop_rate);
+                UpdateCachedJntPos(servo_result);
+                PublishJoints(pos_pub, servo_result, controller_joint_num);
+            }
+        }
+
+        rate.sleep();
+    }
+
     return 0;
 }

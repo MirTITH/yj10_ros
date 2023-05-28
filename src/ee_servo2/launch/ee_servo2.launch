@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+    <node name="end_effector_servo" pkg="ee_servo2" type="ee_servo2_node"
+        output="screen">
+        <param name="chain_end" value="fake_link6" />
+    </node>
+</launch>
