@@ -29,8 +29,9 @@ double ik_error;
 
 // Global values
 // std::atomic<double> JointStateRcvPeriod(0);
-TRAC_IK::TRAC_IK *ik_solver; // 逆运动学解算
+TRAC_IK::TRAC_IK *ik_solver;                // 逆运动学解算
 KDL::ChainFkSolverPos_recursive *fk_solver; // 正运动学解算
+KDL::Chain fake_chain;                      // 包括假关节的关节链
 
 template <typename T>
 bool LoadParam(ros::NodeHandle &node, const std::string &param_name, T &param_val, const T &default_val)
@@ -70,6 +71,26 @@ KDL::JntArray ConvertToKdlJntArray(std::vector<double> vec)
     return result;
 }
 
+/**
+ * @brief 将原始关节角度转换为增加了假关节后的关节角度
+ *
+ * @param real_joints
+ * @param joint_num_of_fake_chain fake_chain 的总关节数
+ * @return KDL::JntArray
+ */
+KDL::JntArray ConvertToFakeJntArray(KDL::JntArray &real_joints, unsigned int joint_num_of_fake_chain)
+{
+    KDL::JntArray fake_joints = real_joints;
+    fake_joints.data.resize(joint_num_of_fake_chain);
+
+    // 最后3个是假关节
+    for (size_t i = joint_num_of_fake_chain - 3; i < joint_num_of_fake_chain; i++)
+    {
+        fake_joints.data(i) = 0;
+    }
+    return fake_joints;
+}
+
 void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
 {
     static ros::Time last_time = ros::Time::now();
@@ -78,8 +99,16 @@ void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
     last_time = current_time;
     // JointStateRcvPeriod.store((current_time - last_time).toSec());
     ROS_INFO("JointState received period: %fs", jnt_state_period);
+
+    auto now_joint_pos = ConvertToKdlJntArray(msg->position);
+    ROS_INFO_STREAM("now_joint_pos: " << now_joint_pos.data);
+    auto fake_joint_pos = ConvertToFakeJntArray(now_joint_pos, fake_chain.getNrOfJoints());
+    ROS_INFO_STREAM("fake_joint_pos: " << fake_joint_pos.data);
     // JointPositions.set(msg->position);
     // HasGotJointPos = true;
+    KDL::Frame now_ee_pos; // 当前末端的位置（解算的末端，不一定是整个机械臂的末端）
+    fk_solver->JntToCart(fake_joint_pos, now_ee_pos);
+    ROS_INFO_STREAM("now_ee_pos: " << now_ee_pos.p.data[0] << " " << now_ee_pos.p.data[1] << " " << now_ee_pos.p.data[2]);
 }
 
 TRAC_IK::SolveType GetSolveType(std::string &solver_type, TRAC_IK::SolveType default_type = TRAC_IK::Speed)
@@ -116,8 +145,8 @@ KDL::Chain GenerateFakeKdlChain(std::string &robot_desc_string, bool add_fake_x,
         ROS_ERROR("Failed to construct kdl tree");
     }
 
-    KDL::Chain my_chain;
-    my_tree.getChain(chain_start, chain_end, my_chain);
+    KDL::Chain result_chain;
+    my_tree.getChain(chain_start, chain_end, result_chain);
 
     KDL::Segment my_segment_x("fake_x", KDL::Joint("fake_joint_x", KDL::Joint::RotX),
                               KDL::Frame(KDL::Rotation::RPY(0.0, 0.0, 0.0),
@@ -131,19 +160,19 @@ KDL::Chain GenerateFakeKdlChain(std::string &robot_desc_string, bool add_fake_x,
 
     if (add_fake_x)
     {
-        my_chain.addSegment(my_segment_x);
+        result_chain.addSegment(my_segment_x);
     }
 
     if (add_fake_y)
     {
-        my_chain.addSegment(my_segment_y);
+        result_chain.addSegment(my_segment_y);
     }
 
     if (add_fake_z)
     {
-        my_chain.addSegment(my_segment_z);
+        result_chain.addSegment(my_segment_z);
     }
-    return my_chain;
+    return result_chain;
 }
 
 void InitTracIk()
@@ -158,11 +187,11 @@ void InitTracIk()
     ros::NodeHandle node;
     std::string robot_desc_string;
     node.param(urdf_param, robot_desc_string, std::string());
-    auto my_chain = GenerateFakeKdlChain(robot_desc_string, false, true, true);
+    fake_chain = GenerateFakeKdlChain(robot_desc_string, false, true, true);
 
     // 关节限位
-    KDL::JntArray q_min(my_chain.getNrOfJoints());
-    KDL::JntArray q_max(my_chain.getNrOfJoints());
+    KDL::JntArray q_min(fake_chain.getNrOfJoints());
+    KDL::JntArray q_max(fake_chain.getNrOfJoints());
 
     // 给假关节很大的角度限位
     for (size_t i = q_min.rows() - 3; i < q_min.rows(); i++)
@@ -187,7 +216,7 @@ void InitTracIk()
     // % Manip1: runs for full timeout, returns solution that maximizes sqrt(det(J*J^T)) (the product of the singular values of the Jacobian)
     // % Manip2: runs for full timeout, returns solution that minimizes the ratio of min to max singular values of the Jacobian.
     // ik_solver = new TRAC_IK::TRAC_IK(chain_start, chain_end, urdf_param, ik_timeout, ik_error, solve_type);
-    ik_solver = new TRAC_IK::TRAC_IK(my_chain, q_min, q_max, ik_timeout, ik_error, solve_type);
+    ik_solver = new TRAC_IK::TRAC_IK(fake_chain, q_min, q_max, ik_timeout, ik_error, solve_type);
 
     // 检测是否合理
     KDL::Chain chain;
@@ -216,7 +245,7 @@ void InitTracIk()
         ROS_INFO_STREAM("  x: " << segment.getJoint().JointAxis().data[0] << "  y: " << segment.getJoint().JointAxis().data[1] << "  z: " << segment.getJoint().JointAxis().data[2]);
     }
 
-    KDL::ChainFkSolverPos_recursive fk_solver(chain); // Forward kin. solver
+    fk_solver = new KDL::ChainFkSolverPos_recursive(chain); // Forward kin. solver
 }
 
 int main(int argc, char **argv)
