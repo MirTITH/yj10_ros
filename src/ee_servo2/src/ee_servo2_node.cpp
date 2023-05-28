@@ -28,6 +28,10 @@ double ik_timeout;
 double ik_error;
 int controller_joint_num;
 double loop_rate; // 循环频率 Hz
+int fake_joint_num;
+bool add_fake_joint_x;
+bool add_fake_joint_y;
+bool add_fake_joint_z;
 
 // Global values
 // std::atomic<double> JointStateRcvPeriod(0);
@@ -74,6 +78,15 @@ void LoadAllParam(ros::NodeHandle &node)
     LoadParam(node, "controller_joint_num", controller_joint_num, 6);
     LoadParam(node, "loop_rate", loop_rate, 10.0);
     LoadParam(node, "max_topic_interval", max_topic_interval, 0.2);
+
+    int add_fake_joint_num;
+    LoadParam(node, "add_fake_joint_num", add_fake_joint_num, 2);
+    fake_joint_num = add_fake_joint_num + 1; // 此程序将 chain_end 对应的 joint 也视为 fake_joint，因此总共的 fake_joint_num 要加1
+    ROS_INFO_STREAM("fake_joint_num: " << fake_joint_num);
+
+    LoadParam(node, "add_fake_joint_x", add_fake_joint_x, false);
+    LoadParam(node, "add_fake_joint_y", add_fake_joint_y, true);
+    LoadParam(node, "add_fake_joint_z", add_fake_joint_z, true);
 }
 
 /**
@@ -118,21 +131,18 @@ KDL::JntArray ConvertToFakeJntArray(const KDL::JntArray &real_joints, unsigned i
     KDL::JntArray fake_joints = real_joints;
     fake_joints.data.resize(joint_num_of_fake_chain);
 
-    // 最后3个是假关节
-    for (size_t i = joint_num_of_fake_chain - 3; i < joint_num_of_fake_chain; i++)
+    // 最后 fake_joint_num 个是假关节
+    for (size_t i = joint_num_of_fake_chain - fake_joint_num; i < joint_num_of_fake_chain; i++)
     {
         fake_joints.data(i) = 0;
     }
     return fake_joints;
 }
 
-int real_joints_rows;
-
 KDL::JntArray ConvertToRealJntArray(const KDL::JntArray &fake_joints, const KDL::JntArray &real_joints)
 {
     KDL::JntArray result = real_joints;
-    real_joints_rows = real_joints.rows();
-    auto num_of_effective_joints = real_joints.rows() - 3;
+    auto num_of_effective_joints = fake_joints.rows() - fake_joint_num;
     for (size_t i = 0; i < num_of_effective_joints; i++)
     {
         result.data(i) = fake_joints.data(i);
@@ -164,9 +174,16 @@ KDL::JntArray Servo(KDL::JntArray servo_joint_pos, double servo_period)
 
     // IK
     KDL::JntArray ik_result;
-    ik_solver->CartToJnt(fake_joint_pos, now_ee_pos, ik_result);
-
-    auto result_joint_pos = ConvertToRealJntArray(ik_result, servo_joint_pos);
+    KDL::JntArray result_joint_pos;
+    if (ik_solver->CartToJnt(fake_joint_pos, now_ee_pos, ik_result) >= 0)
+    {
+        result_joint_pos = ConvertToRealJntArray(ik_result, servo_joint_pos);
+    }
+    else
+    {
+        ROS_WARN_STREAM("ik_solver falied");
+        result_joint_pos = servo_joint_pos;
+    }
 
     // 旋转
     result_joint_pos.data(3) += velocity_rpy.at(0) * servo_period; // 腕关节
@@ -285,21 +302,22 @@ void InitTracIk()
     ros::NodeHandle node;
     std::string robot_desc_string;
     node.param(urdf_param, robot_desc_string, std::string());
-    fake_chain = GenerateFakeKdlChain(robot_desc_string, false, false, false);
+
+    fake_chain = GenerateFakeKdlChain(robot_desc_string, add_fake_joint_x, add_fake_joint_y, add_fake_joint_z);
 
     // 关节限位
     KDL::JntArray q_min(fake_chain.getNrOfJoints());
     KDL::JntArray q_max(fake_chain.getNrOfJoints());
 
     // 给假关节很大的角度限位
-    for (size_t i = q_min.rows() - 3; i < q_min.rows(); i++)
+    for (size_t i = q_min.rows() - fake_joint_num; i < q_min.rows(); i++)
     {
         q_min.data(i) = -1000;
         q_max.data(i) = 1000;
     }
 
     // 真关节的角度限位
-    for (size_t i = 0; i < q_min.rows() - 3; i++)
+    for (size_t i = 0; i < q_min.rows() - fake_joint_num; i++)
     {
         q_min.data(i) = -M_PI_2;
         q_max.data(i) = M_PI_2;
