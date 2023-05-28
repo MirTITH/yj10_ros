@@ -26,12 +26,15 @@ std::string end_effector_velocity_topic;
 std::string ik_solve_type;
 double ik_timeout;
 double ik_error;
+int controller_joint_num;
 
 // Global values
 // std::atomic<double> JointStateRcvPeriod(0);
 TRAC_IK::TRAC_IK *ik_solver;                // 逆运动学解算
 KDL::ChainFkSolverPos_recursive *fk_solver; // 正运动学解算
 KDL::Chain fake_chain;                      // 包括假关节的关节链
+
+ros::Publisher pos_pub;
 
 template <typename T>
 bool LoadParam(ros::NodeHandle &node, const std::string &param_name, T &param_val, const T &default_val)
@@ -59,6 +62,27 @@ void LoadAllParam(ros::NodeHandle &node)
     LoadParam(node, "ik_solve_type", ik_solve_type, std::string("Distance"));
     LoadParam(node, "ik_timeout", ik_timeout, 0.005);
     LoadParam(node, "ik_error", ik_error, 1e-5);
+    LoadParam(node, "controller_joint_num", controller_joint_num, 6);
+}
+
+/**
+ * @brief 发布关节命令
+ * @note controller 只接受长度等于 controller_joint_num 的数组，如果长度不够，这个函数会自动填充 0，如果长度超出，会自动截断
+ *
+ * @param pub
+ * @param joint_pos
+ * @param controller_joint_num
+ */
+void PublishJoints(ros::Publisher &pub, KDL::JntArray joint_pos, int controller_joint_num)
+{
+    std_msgs::Float64MultiArray pos_msg;
+    pos_msg.data.resize(controller_joint_num, 0);
+    size_t num_of_effective_joint = joint_pos.data.size() < controller_joint_num ? joint_pos.data.size() : controller_joint_num;
+    for (size_t i = 0; i < num_of_effective_joint; i++)
+    {
+        pos_msg.data.at(i) = joint_pos(i);
+    }
+    pub.publish(pos_msg);
 }
 
 KDL::JntArray ConvertToKdlJntArray(std::vector<double> vec)
@@ -78,7 +102,7 @@ KDL::JntArray ConvertToKdlJntArray(std::vector<double> vec)
  * @param joint_num_of_fake_chain fake_chain 的总关节数
  * @return KDL::JntArray
  */
-KDL::JntArray ConvertToFakeJntArray(KDL::JntArray &real_joints, unsigned int joint_num_of_fake_chain)
+KDL::JntArray ConvertToFakeJntArray(const KDL::JntArray &real_joints, unsigned int joint_num_of_fake_chain)
 {
     KDL::JntArray fake_joints = real_joints;
     fake_joints.data.resize(joint_num_of_fake_chain);
@@ -91,6 +115,17 @@ KDL::JntArray ConvertToFakeJntArray(KDL::JntArray &real_joints, unsigned int joi
     return fake_joints;
 }
 
+KDL::JntArray ConvertToRealJntArray(const KDL::JntArray &fake_joints, const KDL::JntArray &real_joints)
+{
+    KDL::JntArray result = real_joints;
+    auto num_of_effective_joints = real_joints.rows() - 3;
+    for (size_t i = 0; i < num_of_effective_joints; i++)
+    {
+        result.data(i) = fake_joints.data(i);
+    }
+    return result;
+}
+
 void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
 {
     static ros::Time last_time = ros::Time::now();
@@ -98,17 +133,27 @@ void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
     double jnt_state_period = (current_time - last_time).toSec();
     last_time = current_time;
     // JointStateRcvPeriod.store((current_time - last_time).toSec());
-    ROS_INFO("JointState received period: %fs", jnt_state_period);
+    // ROS_INFO("JointState received period: %fs", jnt_state_period);
 
     auto now_joint_pos = ConvertToKdlJntArray(msg->position);
     ROS_INFO_STREAM("now_joint_pos: " << now_joint_pos.data);
     auto fake_joint_pos = ConvertToFakeJntArray(now_joint_pos, fake_chain.getNrOfJoints());
-    ROS_INFO_STREAM("fake_joint_pos: " << fake_joint_pos.data);
+    // ROS_INFO_STREAM("fake_joint_pos: " << fake_joint_pos.data);
     // JointPositions.set(msg->position);
     // HasGotJointPos = true;
     KDL::Frame now_ee_pos; // 当前末端的位置（解算的末端，不一定是整个机械臂的末端）
     fk_solver->JntToCart(fake_joint_pos, now_ee_pos);
-    ROS_INFO_STREAM("now_ee_pos: " << now_ee_pos.p.data[0] << " " << now_ee_pos.p.data[1] << " " << now_ee_pos.p.data[2]);
+    // ROS_INFO_STREAM("now_ee_pos: " << now_ee_pos.p.data[0] << " " << now_ee_pos.p.data[1] << " " << now_ee_pos.p.data[2]);
+
+    // IK
+    now_ee_pos.p.data[2] -= 0.01;
+    KDL::JntArray ik_result;
+    ik_solver->CartToJnt(fake_joint_pos, now_ee_pos, ik_result);
+
+    auto result_joint_pos = ConvertToRealJntArray(ik_result, now_joint_pos);
+    ROS_INFO_STREAM("result_joint_pos: " << result_joint_pos.data);
+
+    PublishJoints(pos_pub, result_joint_pos, controller_joint_num);
 }
 
 TRAC_IK::SolveType GetSolveType(std::string &solver_type, TRAC_IK::SolveType default_type = TRAC_IK::Speed)
@@ -175,6 +220,20 @@ KDL::Chain GenerateFakeKdlChain(std::string &robot_desc_string, bool add_fake_x,
     return result_chain;
 }
 
+void PrintChain(KDL::Chain &chain, std::string title = "Chain:")
+{
+    ROS_INFO_STREAM(title);
+    ROS_INFO("  Number Of Joints: %d", chain.getNrOfJoints());
+    ROS_INFO("  Number Of Segments: %d", chain.getNrOfSegments());
+    ROS_INFO("  Segments:");
+    for (auto &segment : chain.segments)
+    {
+        ROS_INFO_STREAM("    " << segment.getName());
+        ROS_INFO_STREAM("      Joint name:" << segment.getJoint().getName() << " Type: " << segment.getJoint().getTypeName());
+        ROS_INFO_STREAM("      Axes x: " << segment.getJoint().JointAxis().data[0] << "  y: " << segment.getJoint().JointAxis().data[1] << "  z: " << segment.getJoint().JointAxis().data[2]);
+    }
+}
+
 void InitTracIk()
 {
 
@@ -207,6 +266,9 @@ void InitTracIk()
         q_max.data(i) = M_PI_2;
     }
 
+    // KDL FK
+    fk_solver = new KDL::ChainFkSolverPos_recursive(fake_chain); // Forward kin. solver
+
     // Trac IK
     auto solve_type = GetSolveType(ik_solve_type, TRAC_IK::Distance);
     // % NOTE: The last arguments to the constructors are optional.
@@ -226,26 +288,17 @@ void InitTracIk()
         exit(-1);
     }
 
+    PrintChain(chain, "trac_ik chain:");
+
     KDL::JntArray ll, ul; // lower joint limits, upper joint limits
     if (!ik_solver->getKDLLimits(ll, ul))
     {
         ROS_ERROR("There were no valid KDL joint limits found");
         return;
     }
+
     ROS_INFO_STREAM("lower joint limits: " << ll.data);
     ROS_INFO_STREAM("upper joint limits: " << ul.data);
-
-    ROS_INFO("chain:");
-    ROS_INFO("Using %d joints", chain.getNrOfJoints());
-    ROS_INFO("NumberOfSegments: %d", chain.getNrOfSegments());
-    for (auto segment : chain.segments)
-    {
-        ROS_INFO_STREAM(segment.getName());
-        ROS_INFO_STREAM("  Joint name:" << segment.getJoint().getName() << " Type: " << segment.getJoint().getTypeName());
-        ROS_INFO_STREAM("  x: " << segment.getJoint().JointAxis().data[0] << "  y: " << segment.getJoint().JointAxis().data[1] << "  z: " << segment.getJoint().JointAxis().data[2]);
-    }
-
-    fk_solver = new KDL::ChainFkSolverPos_recursive(chain); // Forward kin. solver
 }
 
 int main(int argc, char **argv)
@@ -257,7 +310,7 @@ int main(int argc, char **argv)
     // 获取joint_state
     ros::Subscriber joint_state_sub = node.subscribe(joint_states_topic, 1, JointStateCallback);
 
-    ros::Publisher pos_pub = node.advertise<std_msgs::Float64MultiArray>(joint_states_topic.append("/command"), 1);
+    pos_pub = node.advertise<std_msgs::Float64MultiArray>(joint_group_position_controller.append("/command"), 1);
 
     InitTracIk();
 
