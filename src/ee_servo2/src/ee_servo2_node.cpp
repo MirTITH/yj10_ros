@@ -29,7 +29,7 @@ double ik_error;
 
 // Global values
 // std::atomic<double> JointStateRcvPeriod(0);
-std::shared_ptr<TRAC_IK::TRAC_IK> ik_solver;
+TRAC_IK::TRAC_IK *ik_solver;
 
 template <typename T>
 bool LoadParam(ros::NodeHandle &node, const std::string &param_name, T &param_val, const T &default_val)
@@ -82,13 +82,13 @@ KDL::Chain GenerateFakeKdlChain(std::string &robot_desc_string, bool add_fake_x,
     KDL::Chain my_chain;
     my_tree.getChain(chain_start, chain_end, my_chain);
 
-    KDL::Segment my_segment_x("fake_x", KDL::Joint(KDL::Joint::RotX),
+    KDL::Segment my_segment_x("fake_x", KDL::Joint("fake_joint_x", KDL::Joint::RotX),
                               KDL::Frame(KDL::Rotation::RPY(0.0, 0.0, 0.0),
                                          KDL::Vector(0.0, 0.0, 0.0)));
-    KDL::Segment my_segment_y("fake_y", KDL::Joint(KDL::Joint::RotY),
+    KDL::Segment my_segment_y("fake_y", KDL::Joint("fake_joint_y", KDL::Joint::RotY),
                               KDL::Frame(KDL::Rotation::RPY(0.0, 0.0, 0.0),
                                          KDL::Vector(0.0, 0.0, 0.0)));
-    KDL::Segment my_segment_z("fake_z", KDL::Joint(KDL::Joint::RotZ),
+    KDL::Segment my_segment_z("fake_z", KDL::Joint("fake_joint_z", KDL::Joint::RotZ),
                               KDL::Frame(KDL::Rotation::RPY(0.0, 0.0, 0.0),
                                          KDL::Vector(0.0, 0.0, 0.0)));
 
@@ -146,13 +146,26 @@ void InitTracIk()
         ROS_WARN_STREAM("Invalid ik_solve_type '" << ik_solve_type << "'");
     }
 
-    // % NOTE: The last arguments to the constructors are optional.
-    // % The type can be one of the following:
-    // % Speed: returns very quickly the first solution found
-    // % Distance: runs for the full timeout_in_secs, then returns the solution that minimizes SSE from the seed
-    // % Manip1: runs for full timeout, returns solution that maximizes sqrt(det(J*J^T)) (the product of the singular values of the Jacobian)
-    // % Manip2: runs for full timeout, returns solution that minimizes the ratio of min to max singular values of the Jacobian.
-    ik_solver = std::make_shared<TRAC_IK::TRAC_IK>(chain_start, chain_end, urdf_param, ik_timeout, ik_error, solve_type);
+    // 关节限位
+    KDL::JntArray q_min(my_chain.getNrOfJoints());
+    KDL::JntArray q_max(my_chain.getNrOfJoints());
+
+    // 给假关节很大的角度限位
+    for (size_t i = q_min.rows() - 3; i < q_min.rows(); i++)
+    {
+        q_min.data(i) = -1000;
+        q_max.data(i) = 1000;
+    }
+
+    // 真关节的角度限位
+    for (size_t i = 0; i < q_min.rows() - 3; i++)
+    {
+        q_min.data(i) = -M_PI_2;
+        q_max.data(i) = M_PI_2;
+    }
+
+    ROS_INFO_STREAM("q_min: " << q_min.data);
+    ROS_INFO_STREAM("q_max: " << q_max.data);
 
     ROS_INFO("my_chain:");
     ROS_INFO("Using %d joints", my_chain.getNrOfJoints());
@@ -160,9 +173,18 @@ void InitTracIk()
     for (auto segment : my_chain.segments)
     {
         ROS_INFO_STREAM(segment.getName());
-        ROS_INFO_STREAM("  Joint name:" << segment.getJoint().getName() << " Type: " << segment.getJoint().getTypeName());
+        ROS_INFO_STREAM("  Joint name: " << segment.getJoint().getName() << " Type: " << segment.getJoint().getTypeName());
         ROS_INFO_STREAM("  x: " << segment.getJoint().JointAxis().data[0] << "  y: " << segment.getJoint().JointAxis().data[1] << "  z: " << segment.getJoint().JointAxis().data[2]);
     }
+
+    // % NOTE: The last arguments to the constructors are optional.
+    // % The type can be one of the following:
+    // % Speed: returns very quickly the first solution found
+    // % Distance: runs for the full timeout_in_secs, then returns the solution that minimizes SSE from the seed
+    // % Manip1: runs for full timeout, returns solution that maximizes sqrt(det(J*J^T)) (the product of the singular values of the Jacobian)
+    // % Manip2: runs for full timeout, returns solution that minimizes the ratio of min to max singular values of the Jacobian.
+    // ik_solver = new TRAC_IK::TRAC_IK(chain_start, chain_end, urdf_param, ik_timeout, ik_error, solve_type);
+    ik_solver = new TRAC_IK::TRAC_IK(my_chain, q_min, q_max, ik_timeout, ik_error, solve_type);
 
     KDL::Chain chain;
     if (!ik_solver->getKDLChain(chain))
@@ -171,15 +193,26 @@ void InitTracIk()
         exit(-1);
     }
 
+    KDL::JntArray ll, ul; // lower joint limits, upper joint limits
+    if (!ik_solver->getKDLLimits(ll, ul))
+    {
+        ROS_ERROR("There were no valid KDL joint limits found");
+        return;
+    }
+    ROS_INFO_STREAM("lower joint limits: " << ll.data);
+    ROS_INFO_STREAM("upper joint limits: " << ul.data);
+
     ROS_INFO("chain:");
-    ROS_INFO("Using %d joints", my_chain.getNrOfJoints());
-    ROS_INFO("NumberOfSegments: %d", my_chain.getNrOfSegments());
-    for (auto segment : my_chain.segments)
+    ROS_INFO("Using %d joints", chain.getNrOfJoints());
+    ROS_INFO("NumberOfSegments: %d", chain.getNrOfSegments());
+    for (auto segment : chain.segments)
     {
         ROS_INFO_STREAM(segment.getName());
         ROS_INFO_STREAM("  Joint name:" << segment.getJoint().getName() << " Type: " << segment.getJoint().getTypeName());
         ROS_INFO_STREAM("  x: " << segment.getJoint().JointAxis().data[0] << "  y: " << segment.getJoint().JointAxis().data[1] << "  z: " << segment.getJoint().JointAxis().data[2]);
     }
+
+    KDL::ChainFkSolverPos_recursive fk_solver(chain); // Forward kin. solver
 }
 
 int main(int argc, char **argv)
