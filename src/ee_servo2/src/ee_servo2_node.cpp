@@ -15,6 +15,7 @@
 #include <std_msgs/String.h>
 #include <controller_manager_msgs/SwitchController.h>
 #include <kdl_parser/kdl_parser.hpp>
+#include "load_param.hpp"
 
 // Params
 std::string chain_start, chain_end;
@@ -34,7 +35,6 @@ bool add_fake_joint_z;
 double max_topic_interval;
 
 // Global values
-// std::atomic<double> JointStateRcvPeriod(0);
 TRAC_IK::TRAC_IK *ik_solver;                // 逆运动学解算
 KDL::ChainFkSolverPos_recursive *fk_solver; // 正运动学解算
 KDL::Chain FakeChain;                       // 包括假关节的关节链
@@ -42,26 +42,11 @@ std::array<double, 3> VelocityPos;
 std::array<double, 3> VelocityRpy; // 0: r,绕 x 旋转；1: p,绕 y 旋转；2: y,绕 z 旋转；
 double JntStatePeriod = 0;
 double LastEeVelocityTopicTime = 0; // 上一次末端速度消息接收到的时刻
-KDL::JntArray NowJointPos;    // 当前关节位置
-KDL::JntArray CachedJointPos; // 缓存的关节位置（因为关节状态的读取周期较长，因此如果直接从当前关节状态解算位置偏移量，会因为有延迟导致震荡）
+KDL::JntArray NowJointPos;          // 当前关节位置
+KDL::JntArray CachedJointPos;       // 缓存的关节位置（因为关节状态的读取周期较长，因此如果直接从当前关节状态解算位置偏移量，会因为有延迟导致震荡）
 
 // Publisher
 ros::Publisher pos_pub;
-
-template <typename T>
-bool LoadParam(ros::NodeHandle &node, const std::string &param_name, T &param_val, const T &default_val)
-{
-    auto result = node.param(param_name, param_val, default_val);
-    if (result == true)
-    {
-        ROS_INFO_STREAM("LoadParam: " << param_name << " = " << param_val);
-    }
-    else
-    {
-        ROS_INFO_STREAM("LoadDefaultParam: " << param_name << " = " << param_val);
-    }
-    return result;
-}
 
 void LoadAllParam(ros::NodeHandle &node)
 {
@@ -381,6 +366,12 @@ void UpdateCachedJntPos(const KDL::JntArray &position)
     CachedJointPos = position;
 }
 
+void UpdateCachedPosCallback(const std_msgs::Empty &msg)
+{
+    ROS_INFO_STREAM("UpdateCachedPos");
+    UpdateCachedJntPos(NowJointPos);
+}
+
 bool IsVelocityZero()
 {
     for (auto &vec : VelocityPos)
@@ -422,6 +413,9 @@ int main(int argc, char **argv)
     // 由用户发布，期望的末端执行器速度
     ros::Subscriber ee_velocity_sub = node.subscribe(end_effector_velocity_topic, 1, EndEffectorVelocityCallback);
 
+    // 向这个话题发布消息以更新缓存位置
+    ros::Subscriber update_cached_pos_sub = node.subscribe("update_cached_pos", 1, UpdateCachedPosCallback);
+
     InitTracIk();
 
     ROS_INFO_STREAM("Waiting for joint_states");
@@ -434,7 +428,6 @@ int main(int argc, char **argv)
 
     bool last_need_servo_state = false;
 
-    // msg.get()
     ros::Rate rate(loop_rate);
 
     while (node.ok())

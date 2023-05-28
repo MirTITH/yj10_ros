@@ -139,6 +139,11 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(${PROJECT_NAME}_node
   src/ee_servo2_node.cpp
+  
+)
+
+add_executable(ee_servo2_moveit_node
+  src/ee_servo2_moveit_node.cpp
 )
 
 ## Rename C++ executable without prefix
@@ -153,6 +158,12 @@ add_executable(${PROJECT_NAME}_node
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}_node
+  ${catkin_LIBRARIES}
+  ${Boost_LIBRARIES}
+  ${orocos_kdl_LIBRARIES}
+)
+
+target_link_libraries(ee_servo2_moveit_node
   ${catkin_LIBRARIES}
   ${Boost_LIBRARIES}
   ${orocos_kdl_LIBRARIES}
