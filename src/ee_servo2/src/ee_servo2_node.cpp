@@ -12,7 +12,6 @@
 #include <array>
 #include <std_srvs/Empty.h>
 #include <moveit/move_group_interface/move_group_interface.h>
-#include "safe_global.hpp"
 #include <std_msgs/String.h>
 #include <controller_manager_msgs/SwitchController.h>
 #include <kdl_parser/kdl_parser.hpp>
@@ -32,19 +31,19 @@ int fake_joint_num;
 bool add_fake_joint_x;
 bool add_fake_joint_y;
 bool add_fake_joint_z;
+double max_topic_interval;
 
 // Global values
 // std::atomic<double> JointStateRcvPeriod(0);
 TRAC_IK::TRAC_IK *ik_solver;                // 逆运动学解算
 KDL::ChainFkSolverPos_recursive *fk_solver; // 正运动学解算
-KDL::Chain fake_chain;                      // 包括假关节的关节链
-std::array<double, 3> velocity_pos;
-std::array<double, 3> velocity_rpy; // 0: r,绕 x 旋转；1: p,绕 y 旋转；2: y,绕 z 旋转；
-double jnt_state_period = 0;
-double last_ee_velocity_topic_time = 0;
-double max_topic_interval;
-KDL::JntArray now_joint_pos;    // 当前关节位置
-KDL::JntArray cached_joint_pos; // 缓存的关节位置（因为关节状态的读取周期较长，因此如果直接从当前关节状态解算位置偏移量，会因为有延迟导致震荡）
+KDL::Chain FakeChain;                       // 包括假关节的关节链
+std::array<double, 3> VelocityPos;
+std::array<double, 3> VelocityRpy; // 0: r,绕 x 旋转；1: p,绕 y 旋转；2: y,绕 z 旋转；
+double JntStatePeriod = 0;
+double LastEeVelocityTopicTime = 0; // 上一次末端速度消息接收到的时刻
+KDL::JntArray NowJointPos;    // 当前关节位置
+KDL::JntArray CachedJointPos; // 缓存的关节位置（因为关节状态的读取周期较长，因此如果直接从当前关节状态解算位置偏移量，会因为有延迟导致震荡）
 
 // Publisher
 ros::Publisher pos_pub;
@@ -159,7 +158,7 @@ KDL::JntArray ConvertToRealJntArray(const KDL::JntArray &fake_joints, const KDL:
  */
 KDL::JntArray Servo(KDL::JntArray servo_joint_pos, double servo_period)
 {
-    auto fake_joint_pos = ConvertToFakeJntArray(servo_joint_pos, fake_chain.getNrOfJoints());
+    auto fake_joint_pos = ConvertToFakeJntArray(servo_joint_pos, FakeChain.getNrOfJoints());
 
     KDL::Frame now_ee_pos; // 当前末端的位置（解算的末端，不一定是整个机械臂的末端）
     fk_solver->JntToCart(fake_joint_pos, now_ee_pos);
@@ -168,7 +167,7 @@ KDL::JntArray Servo(KDL::JntArray servo_joint_pos, double servo_period)
     // 计算新的末端位置
     for (size_t i = 0; i < 3; i++)
     {
-        now_ee_pos.p.data[i] += velocity_pos.at(i) * servo_period;
+        now_ee_pos.p.data[i] += VelocityPos.at(i) * servo_period;
     }
     ROS_INFO_STREAM("now_ee_pos: " << now_ee_pos.p.data[0] << " " << now_ee_pos.p.data[1] << " " << now_ee_pos.p.data[2]);
 
@@ -186,9 +185,9 @@ KDL::JntArray Servo(KDL::JntArray servo_joint_pos, double servo_period)
     }
 
     // 旋转
-    result_joint_pos.data(3) += velocity_rpy.at(0) * servo_period; // 腕关节
-    result_joint_pos.data(4) += velocity_rpy.at(1) * servo_period; // 夹爪关节
-    result_joint_pos.data(0) += velocity_rpy.at(2) * servo_period; // 基座关节
+    result_joint_pos.data(3) += VelocityRpy.at(0) * servo_period; // 腕关节
+    result_joint_pos.data(4) += VelocityRpy.at(1) * servo_period; // 夹爪关节
+    result_joint_pos.data(0) += VelocityRpy.at(2) * servo_period; // 基座关节
 
     // ROS_INFO_STREAM("result_joint_pos: " << result_joint_pos.data);
     return result_joint_pos;
@@ -200,16 +199,16 @@ void JointStateCallback(const sensor_msgs::JointState::ConstPtr &msg)
 {
     static ros::Time last_time = ros::Time::now();
     ros::Time current_time = ros::Time::now();
-    jnt_state_period = (current_time - last_time).toSec();
+    JntStatePeriod = (current_time - last_time).toSec();
     last_time = current_time;
 
     // 避免长时间没收到 joint_states 导致解算出的位置变化异常大
-    if (jnt_state_period > 1)
+    if (JntStatePeriod > 1)
     {
         ROS_WARN_STREAM("last joint_states topic got more than 1s ago");
     }
 
-    now_joint_pos = ConvertToKdlJntArray(msg->position);
+    NowJointPos = ConvertToKdlJntArray(msg->position);
 }
 
 TRAC_IK::SolveType GetSolveType(std::string &solver_type, TRAC_IK::SolveType default_type = TRAC_IK::Speed)
@@ -303,11 +302,11 @@ void InitTracIk()
     std::string robot_desc_string;
     node.param(urdf_param, robot_desc_string, std::string());
 
-    fake_chain = GenerateFakeKdlChain(robot_desc_string, add_fake_joint_x, add_fake_joint_y, add_fake_joint_z);
+    FakeChain = GenerateFakeKdlChain(robot_desc_string, add_fake_joint_x, add_fake_joint_y, add_fake_joint_z);
 
     // 关节限位
-    KDL::JntArray q_min(fake_chain.getNrOfJoints());
-    KDL::JntArray q_max(fake_chain.getNrOfJoints());
+    KDL::JntArray q_min(FakeChain.getNrOfJoints());
+    KDL::JntArray q_max(FakeChain.getNrOfJoints());
 
     // 给假关节很大的角度限位
     for (size_t i = q_min.rows() - fake_joint_num; i < q_min.rows(); i++)
@@ -324,7 +323,7 @@ void InitTracIk()
     }
 
     // KDL FK
-    fk_solver = new KDL::ChainFkSolverPos_recursive(fake_chain); // Forward kin. solver
+    fk_solver = new KDL::ChainFkSolverPos_recursive(FakeChain); // Forward kin. solver
 
     // Trac IK
     auto solve_type = GetSolveType(ik_solve_type, TRAC_IK::Distance);
@@ -335,7 +334,7 @@ void InitTracIk()
     // % Manip1: runs for full timeout, returns solution that maximizes sqrt(det(J*J^T)) (the product of the singular values of the Jacobian)
     // % Manip2: runs for full timeout, returns solution that minimizes the ratio of min to max singular values of the Jacobian.
     // ik_solver = new TRAC_IK::TRAC_IK(chain_start, chain_end, urdf_param, ik_timeout, ik_error, solve_type);
-    ik_solver = new TRAC_IK::TRAC_IK(fake_chain, q_min, q_max, ik_timeout, ik_error, solve_type);
+    ik_solver = new TRAC_IK::TRAC_IK(FakeChain, q_min, q_max, ik_timeout, ik_error, solve_type);
 
     // 检测是否合理
     KDL::Chain chain;
@@ -362,29 +361,29 @@ void InitTracIk()
 
 void EndEffectorVelocityCallback(const geometry_msgs::Twist &msg)
 {
-    last_ee_velocity_topic_time = ros::Time::now().toSec();
+    LastEeVelocityTopicTime = ros::Time::now().toSec();
 
-    velocity_pos.at(0) = msg.linear.x;
-    velocity_pos.at(1) = msg.linear.y;
-    velocity_pos.at(2) = msg.linear.z;
-    velocity_rpy.at(0) = msg.angular.x;
-    velocity_rpy.at(1) = msg.angular.y;
-    velocity_rpy.at(2) = msg.angular.z;
+    VelocityPos.at(0) = msg.linear.x;
+    VelocityPos.at(1) = msg.linear.y;
+    VelocityPos.at(2) = msg.linear.z;
+    VelocityRpy.at(0) = msg.angular.x;
+    VelocityRpy.at(1) = msg.angular.y;
+    VelocityRpy.at(2) = msg.angular.z;
 }
 
 void UpdateCachedJntPos(const std::vector<double> &position)
 {
-    cached_joint_pos = ConvertToKdlJntArray(position);
+    CachedJointPos = ConvertToKdlJntArray(position);
 }
 
 void UpdateCachedJntPos(const KDL::JntArray &position)
 {
-    cached_joint_pos = position;
+    CachedJointPos = position;
 }
 
 bool IsVelocityZero()
 {
-    for (auto &vec : velocity_pos)
+    for (auto &vec : VelocityPos)
     {
         if (vec != 0)
         {
@@ -392,7 +391,7 @@ bool IsVelocityZero()
         }
     }
 
-    for (auto &vec : velocity_rpy)
+    for (auto &vec : VelocityRpy)
     {
         if (vec != 0)
         {
@@ -405,7 +404,7 @@ bool IsVelocityZero()
 void StopArm()
 {
     ROS_INFO_STREAM("Stopping Arm");
-    PublishJoints(pos_pub, now_joint_pos, controller_joint_num); // 刹车
+    PublishJoints(pos_pub, NowJointPos, controller_joint_num); // 刹车
 }
 
 int main(int argc, char **argv)
@@ -427,8 +426,8 @@ int main(int argc, char **argv)
 
     ROS_INFO_STREAM("Waiting for joint_states");
     auto msg = ros::topic::waitForMessage<sensor_msgs::JointState>(joint_states_topic);
-    now_joint_pos = ConvertToKdlJntArray(msg->position);
-    UpdateCachedJntPos(now_joint_pos);
+    NowJointPos = ConvertToKdlJntArray(msg->position);
+    UpdateCachedJntPos(NowJointPos);
     ROS_INFO_STREAM("Start servo");
 
     double delta_sec;
@@ -449,7 +448,7 @@ int main(int argc, char **argv)
         {
             // 在切换 servo state 的时候更新到实际位置
             last_need_servo_state = need_servo;
-            UpdateCachedJntPos(now_joint_pos);
+            UpdateCachedJntPos(NowJointPos);
 
             if (need_servo == false)
             {
@@ -460,18 +459,18 @@ int main(int argc, char **argv)
         if (need_servo)
         {
             // 超时判断
-            delta_sec = ros::Time::now().toSec() - last_ee_velocity_topic_time;
+            delta_sec = ros::Time::now().toSec() - LastEeVelocityTopicTime;
             if (delta_sec > max_topic_interval)
             {
                 ROS_WARN_STREAM("Did not get msg for " << delta_sec << "sec. Stop.");
-                velocity_rpy.fill(0);
-                velocity_pos.fill(0);
+                VelocityRpy.fill(0);
+                VelocityPos.fill(0);
                 need_servo = false;
             }
             else
             {
                 // Servo
-                auto servo_result = Servo(cached_joint_pos, 1 / loop_rate);
+                auto servo_result = Servo(CachedJointPos, 1 / loop_rate);
                 UpdateCachedJntPos(servo_result);
                 PublishJoints(pos_pub, servo_result, controller_joint_num);
             }
