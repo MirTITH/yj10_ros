@@ -67,6 +67,8 @@
   <build_depend>kdl_parser</build_depend>
   <exec_depend>kdl_parser</exec_depend>
 
+  <depend>libnlopt-cxx-dev</depend>
+
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->
