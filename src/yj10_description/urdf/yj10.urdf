@@ -184,6 +184,12 @@ Stephen Brawner (brawner@gmail.com)
         <limit lower="-1.5708" upper="1.5708" effort="10000" velocity="0.57" />
     </joint>
     <link name="fake_link6">
+        <inertial>
+            <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+            <mass value="0.22539" />
+            <inertia ixx="9.0388E-05" ixy="0.0" ixz="0.0" iyy="7.1045E-05"
+                iyz="0.0" izz="0.00014085" />
+        </inertial>
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0" />
             <geometry>
@@ -201,65 +207,65 @@ Stephen Brawner (brawner@gmail.com)
     <transmission name="trans_joint1">
         <type>transmission_interface/SimpleTransmission</type>
         <joint name="joint1">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
         </joint>
         <actuator name="joint1_motor">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
             <mechanicalReduction>1</mechanicalReduction>
         </actuator>
     </transmission>
     <transmission name="trans_joint2">
         <type>transmission_interface/SimpleTransmission</type>
         <joint name="joint2">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
         </joint>
         <actuator name="joint2_motor">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
             <mechanicalReduction>1</mechanicalReduction>
         </actuator>
     </transmission>
     <transmission name="trans_joint3">
         <type>transmission_interface/SimpleTransmission</type>
         <joint name="joint3">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
         </joint>
         <actuator name="joint3_motor">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
             <mechanicalReduction>1</mechanicalReduction>
         </actuator>
     </transmission>
     <transmission name="trans_joint4">
         <type>transmission_interface/SimpleTransmission</type>
         <joint name="joint4">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
         </joint>
         <actuator name="joint4_motor">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
             <mechanicalReduction>1</mechanicalReduction>
         </actuator>
     </transmission>
     <transmission name="trans_joint5">
         <type>transmission_interface/SimpleTransmission</type>
         <joint name="joint5">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
         </joint>
         <actuator name="joint5_motor">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
             <mechanicalReduction>1</mechanicalReduction>
         </actuator>
     </transmission>
     <gazebo>
         <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
-            <robotNamespace>/</robotNamespace>
+            <robotNamespace>/yj10</robotNamespace>
         </plugin>
     </gazebo>
     <transmission name="trans_joint6_fake">
         <type>transmission_interface/SimpleTransmission</type>
         <joint name="joint6_fake">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
         </joint>
         <actuator name="joint6_fake_motor">
-            <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+            <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
             <mechanicalReduction>1</mechanicalReduction>
         </actuator>
     </transmission>

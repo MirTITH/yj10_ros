@@ -24,11 +24,8 @@ YJ10 排爆机械臂的 ROS 库。使用 RS485 与机械臂通信，通信协议
 构建前，需要安装依赖，在仓库根目录执行：
 
 ```bash
-# 安装 modbus 库
-sudo apt install libmodbus-dev
-
-# 安装其他 ros 依赖。如果 $ROS_DISTRO 未定义，请将它改为你的 ros 版本
-rosdep install --rosdistro $ROS_DISTRO --ignore-src --from-paths src
+# Remember to source ros first, then run the following cmd:
+rosdep install --from-paths src --ignore-src -r -y
 ```
 
 构建：
