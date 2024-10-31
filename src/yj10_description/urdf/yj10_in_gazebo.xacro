@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<!-- Revolute-Revolute Manipulator -->
+<robot name="yj10" xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <xacro:include filename="$(find yj10_description)/urdf/materials.xacro" />
+    <xacro:include filename="$(find yj10_description)/urdf/yj10.urdf" />
+    <xacro:include filename="$(find yj10_description)/urdf/camera.xacro" />
+</robot>

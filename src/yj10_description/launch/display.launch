@@ -1,20 +1,10 @@
 <launch>
-  <arg
-    name="model" />
-  <param
-    name="robot_description"
-    textfile="$(find yj10_description)/urdf/yj10.urdf" />
-  <node
-    name="joint_state_publisher_gui"
-    pkg="joint_state_publisher_gui"
-    type="joint_state_publisher_gui" />
-  <node
-    name="robot_state_publisher"
-    pkg="robot_state_publisher"
-    type="robot_state_publisher" />
-  <node
-    name="rviz"
-    pkg="rviz"
-    type="rviz"
-    args="-d $(find yj10_description)/config/display.rviz" />
+  <!-- <param name="robot_description" textfile="$(find yj10_description)/urdf/yj10.urdf" /> -->
+
+  <param name="robot_description"
+    command="$(find xacro)/xacro --inorder '$(find yj10_description)/urdf/yj10_in_gazebo.xacro'" />
+
+  <node name="joint_state_publisher_gui" pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" />
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find yj10_description)/config/display.rviz" />
 </launch>
