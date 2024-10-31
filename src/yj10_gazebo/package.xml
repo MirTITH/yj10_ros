@@ -54,6 +54,8 @@
   <exec_depend>roscpp</exec_depend>
   <exec_depend>yj10_moveit_group</exec_depend>
   <exec_depend>yj10_description</exec_depend>
+  <exec_depend>yj10_moveit_config</exec_depend>
+  <exec_depend>joint_trajectory_controller</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

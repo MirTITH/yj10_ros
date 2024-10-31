@@ -13,9 +13,9 @@ YJ10 排爆机械臂的 ROS 库。使用 RS485 与机械臂通信，通信协议
 | 文件夹 | 说明           |
 | ------ | -------------- |
 | docs   | 机械臂相关文档 |
-| src    | ros 软件包代码 |
+| src    | ros 软件包     |
 
-各个软件包的说明放在各自的子文件夹里
+若要具体了解 src 文件夹下的软件包，请参阅对应目录下的 readme.md 文件
 
 ## 构建方法
 
@@ -36,32 +36,33 @@ catkin_make
 
 ## 使用说明
 
-仅列举常见使用方式，详细说明请查看各自软件包的 readme 文件
+> 仅列举常见使用方式，详细说明请查看各自软件包的 readme.md 文件
 
 使用软件包前，需要 source:
 
 对于bash用户:
 
-```sh
+```shell
 source devel/setup.bash
 ```
 
 对于zsh用户:
 
-```sh
+```shell
 source devel/setup.zsh
 ```
 
 ### 显示机械臂的模型
 
-```sh
+```shell
 roslaunch yj10_description display.launch
 ```
 
 ### 使用 Gazebo 仿真，在 Rviz 中使用 Moveit
 
-```sh
-roslaunch yj10_moveit_config demo_gazebo.launch
+```shell
+roslaunch yj10_gazebo gazebo_control.launch
+roslaunch yj10_gazebo gazebo_moveit.launch
 ```
 
 ### 连接机械臂
@@ -72,10 +73,11 @@ roslaunch yj10_moveit_config demo_gazebo.launch
 
 1. 使用串口连接机械臂
 2. 在 [yj10_driver.yaml](src/yj10_driver/config/yj10_driver.yaml) 中配置串口设备
+   
     > 请注意，关闭其中的 `fake_connect` 才会真正连接机械臂
 3. 赋予串口设备访问权限（以下方法二选一）
 
-    ```sh
+    ```shell
     # 临时打开串口权限（注意将 /dev/ttyUSB0 改为对应串口）
     sudo chmod 666 /dev/ttyUSB0
 
@@ -83,17 +85,17 @@ roslaunch yj10_moveit_config demo_gazebo.launch
     sudo usermod -aG dialout 用户名
     ```
 
-4. 给机械臂供电，24V 直流（注意，给机械臂供电后，机械臂会自动在3秒后展开）
+4. 给机械臂供电，24V 直流（注意，给机械臂供电后，机械臂会在3秒后自动展开）
 
-#### 连接但不启动 Rviz
+#### 连接但不打开 Rviz
 
-```sh
+```shell
 roslaunch yj10_driver yj10_connect.launch
 ```
 
-#### 连接并启动 Rviz
+#### 连接并打开 Rviz
 
-```sh
+```shell
 roslaunch yj10_driver yj10_connect_rviz.launch
 ```
 
