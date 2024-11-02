@@ -1,0 +1,12 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/docker_user/user_data/yj10_ros_ws/src/yj10_grasp_model_client/src",
+        "/home/docker_user/user_data/yj10_ros_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/docker_user/user_data/yj10_ros_ws/src/yj10_grasp_model_client/src",
+        "/home/docker_user/user_data/yj10_ros_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ]
+}

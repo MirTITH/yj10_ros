@@ -1,0 +1,8 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "@PROJECT_NAME@"
+version = "@PROJECT_VERSION@"
+dependencies = ["grpcio", "grpcio-tools"]
