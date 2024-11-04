@@ -64,6 +64,27 @@ roslaunch yj10_description display.launch
 roslaunch yj10_gazebo gazebo_moveit.launch
 ```
 
+### Gazebo 抓取仿真
+
+启动 Grasp Model：  
+```shell
+docker exec -it grasp_model_he workspace/run_grpc_server.sh
+```
+
+```shell
+# 在两个终端中分别执行：
+roslaunch yj10_gazebo gazebo_moveit.launch
+rosrun yj10_grasp_model_client grasp_model_client.py
+```
+
+操作方法：  
+1. 在 Grasp Model UI 窗口中按下键盘上的 “0” 将机械臂归位  
+2. 使用鼠标左键框选需要抓取的物体  
+3. 点击右键调用模型生成抓取位姿  
+4. 点击鼠标中键将机械臂运动到抓取点  
+5. 按键盘上的 “1” 张开夹爪，“2” 闭合夹爪（未完成）
+6. 按下键盘上的 “0” 将机械臂归位  
+
 ### 连接机械臂
 
 **这会将机械臂复位到初始位姿**，同时启动 ros controller 并发布 joint state 关节信息
