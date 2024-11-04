@@ -2,17 +2,21 @@
 import rospy
 from sensor_msgs.msg import PointCloud2, Image, CameraInfo
 from yj10_grasp_model_client.common_utils import FrameRateCounter, DataAligner, AlignedDataCollection, PointCloudUtils
+from yj10_grasp_model_client.hdz_user_interface import HdzUserInterface
+from yj10_grasp_model_client.moveit_group import MoveGroupPythonInterface
 import numpy as np
 from typing import Optional
 
 import grpc
-from grasp_model_grpc_msg import grasp_model_grpc_msg_pb2, grasp_model_grpc_msg_pb2_grpc
-from grasp_model_grpc_msg.grasp_model_grpc_msg_pb2 import PointCloud, StrMsg, PoseStamped, Pose
-from grasp_model_grpc_msg.utils import PointCloud2Numpy, Numpy2PointCloud
+from grasp_model_grpc_msg import grasp_model_grpc_msg_pb2 as gmg_msg
+from grasp_model_grpc_msg import grasp_model_grpc_msg_pb2_grpc
+from grasp_model_grpc_msg.utils import PointCloud2Numpy, Numpy2PointCloud, GraspModeloseStamped2Ros
+import tf2_ros
 from tf2_ros import TransformBroadcaster, StaticTransformBroadcaster
-from yj10_grasp_model_client.hdz_user_interface import HdzUserInterface
 from cv_bridge import CvBridge
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TransformStamped, Pose, PoseStamped
+from scipy.spatial.transform import Rotation
+import tf2_geometry_msgs
 
 
 class GraspModelClient:
@@ -25,11 +29,11 @@ class GraspModelClient:
         pcd: np.ndarray,
         frame_name: str = "",
         user_mask: Optional[np.ndarray] = None,
-    ) -> PoseStamped:
+    ) -> gmg_msg.PoseStamped:
         pcd_msg = Numpy2PointCloud(pcd, frame_name)
         if user_mask is not None:
             pcd_msg.user_mask = user_mask.astype("bool").tobytes()
-        response: PoseStamped = self.grasp_stub.GenerateFromPointCloud(pcd_msg)
+        response: gmg_msg.PoseStamped = self.grasp_stub.GenerateFromPointCloud(pcd_msg)
         return response
 
     def __del__(self):
@@ -37,7 +41,9 @@ class GraspModelClient:
 
 
 class GraspFrontEnd:
-    def __init__(self):
+    def __init__(self, move_group_interface: MoveGroupPythonInterface):
+        self.move_group_interface = move_group_interface
+
         rospy.Subscriber("/gz_cam/color/image_raw", Image, self.rgb_callback)
         rospy.Subscriber("/gz_cam/depth/image_raw", Image, self.depth_callback)
         rospy.Subscriber("/gz_cam/color/camera_info", CameraInfo, self.info_callback)
@@ -60,9 +66,16 @@ class GraspFrontEnd:
         self.grasp_model_client = GraspModelClient("localhost", 50051)
 
         # self.timer = self.create_timer(1.0, self.timer_callback)
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = TransformBroadcaster()
 
-        self.user_interface = HdzUserInterface(infer_callback=self.__infer_callback)
+        self.user_interface = HdzUserInterface(
+            infer_callback=self.__infer_callback,
+            move_to_home_callback=self.__move_to_home_callback,
+            move_to_pose_callback=self.__move_to_callback,
+            gripper_cmd_callback=self.__gripper_callback,
+        )
 
     def info_callback(self, msg: CameraInfo):
         self.pcl_util.set_intrinsics(msg.K)
@@ -116,28 +129,71 @@ class GraspFrontEnd:
                     frame_name=frame_name,
                     user_mask=pcl_mask,
                 )
+                # Rotate the output from the grasp model to match the arm
+                response.pose.orientation.CopyFrom(self.model_quat_2_arm_quat(response.pose.orientation))
                 rospy.loginfo(str(response))
                 self.broadcast_grasp_target(response.pose.position, response.pose.orientation, frame_name)
                 return response
             except Exception as e:
                 rospy.logerr(f"Error in timer_callback: {e}")
 
-    def __move_to_callback(self, **kwargs):
+    def __move_to_callback(self, pose_stamped: gmg_msg.PoseStamped):
         rospy.loginfo(f"__move_to_callback")
-        pose = kwargs["pose"]
-        self.arm_client.MoveTo(pose)
+        pose_ros = GraspModeloseStamped2Ros(pose_stamped)
+        pose_ros = self.transform_pose(pose_ros, "world")
+        self.move_group_interface.move_to_pose(pose_ros.pose)
 
-    def __move_to_named_callback(self, **kwargs):
-        rospy.loginfo(f"__move_to_named_callback")
-        pose_name = kwargs["pose_name"]
-        self.arm_client.MoveToNamed(pose_name)
+    def __move_to_home_callback(self):
+        rospy.loginfo(f"__move_to_home_callback")
+        self.move_group_interface.move_to_named("down")
 
     def __gripper_callback(self, **kwargs):
-        rospy.loginfo(f"__gripper_callback")
+        rospy.loginfo(f"__gripper_callback: {kwargs}")
         normalized_width = kwargs["normalized_width"]
         max_effort = kwargs["max_effort"]
         grasp_depth = kwargs["grasp_depth"]
-        self.arm_client.SetGripper(normalized_width, max_effort, grasp_depth)
+        # self.arm_client.SetGripper(normalized_width, max_effort, grasp_depth)
+
+    def model_quat_2_arm_quat(self, quat: gmg_msg.Quaternion) -> gmg_msg.Quaternion:
+        """Rotate the output from the grasp model to match the arm
+
+        Args:
+            quat (gmg_msg.Quaternion): The quaternion from the grasp model
+
+        Returns:
+            gmg_msg.Quaternion: The quaternion for the arm
+        """
+
+        r = Rotation.from_quat([quat.x, quat.y, quat.z, quat.w])
+        r = r * Rotation.from_euler("xyz", [np.pi / 2, 0, 0])
+        new_quat = r.as_quat()
+        return gmg_msg.Quaternion(x=new_quat[0], y=new_quat[1], z=new_quat[2], w=new_quat[3])
+
+    def transform_pose(self, pose_stamped: PoseStamped, target_frame: str):
+        """
+        将 PoseStamped 转换到目标参考系
+
+        :param pose_stamped: 输入的 PoseStamped 消息
+        :param target_frame: 目标参考系，例如 "world"
+        :return: 转换后的 PoseStamped 消息
+        """
+
+        try:
+            # 获取从 pose_stamped 的原始参考系到目标参考系的转换
+            transform = self.tf_buffer.lookup_transform(
+                target_frame,
+                pose_stamped.header.frame_id,
+                rospy.Time(0),
+                timeout=rospy.Duration(1.0),
+            )
+
+            # 执行转换
+            transformed_pose = tf2_geometry_msgs.do_transform_pose(pose_stamped, transform)
+            return transformed_pose
+
+        except Exception as e:
+            rospy.logerr(f"Transform error: {e}")
+            return None
 
 
 def main():
@@ -149,7 +205,8 @@ def main():
     # run simultaneously.
     rospy.init_node("grasp_model_client", anonymous=True)
 
-    grasp_front_end = GraspFrontEnd()
+    move_group_interface = MoveGroupPythonInterface("manipulator")
+    grasp_front_end = GraspFrontEnd(move_group_interface)
 
     # spin() simply keeps python from exiting until this node is stopped
     rospy.spin()

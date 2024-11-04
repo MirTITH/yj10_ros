@@ -9,9 +9,6 @@ from dataclasses import dataclass
 import numpy as np
 from typing import Optional
 
-# from .hdz_grpc_arm_client import HdzGrpcArmClient
-# from .hdz_grpc_msg import hdz_grpc_msg_pb2
-
 
 @dataclass
 class HdzUserInterfaceData:
@@ -31,18 +28,20 @@ class HdzUserInterfaceData:
 
 
 class HdzUserInterface:
-    def __init__(self, infer_callback):
+    def __init__(self, infer_callback, move_to_home_callback, move_to_pose_callback, gripper_cmd_callback):
         self.data = HdzUserInterfaceData()
         self.img_fps_counter = FrameRateCounter(1000)
         self.mask: Optional[np.ndarray] = None  # dtype=np.bool
 
-        self.cv_window_name = "hdz_user_interface"
+        self.cv_window_name = "Grasp Model UI"
         self.rect_start = None
         self.rect_drawing = False
 
         self.grasp_pose = None
         self.infer_callback = infer_callback
-        # self.arm_client = HdzGrpcArmClient("192.168.1.150", 9999)
+        self.move_to_home_callback = move_to_home_callback
+        self.move_to_pose_callback = move_to_pose_callback
+        self.gripper_cmd_callback = gripper_cmd_callback
 
         self.user_interface_thread = threading.Thread(target=self.__user_interface_entry)
         self.user_interface_thread.start()
@@ -83,13 +82,13 @@ class HdzUserInterface:
 
                 if key == ord("0"):
                     rospy.loginfo("Key 0 pressed. Return to home position")
-                    # self.arm_client.MoveToNamed("ready")
+                    self.move_to_home_callback()
                 elif key == ord("1"):
                     rospy.loginfo("Key 1 pressed. Open gripper")
-                    # self.arm_client.SetGripper(1.0)
+                    self.gripper_cmd_callback(1.0)
                 elif key == ord("2"):
                     rospy.loginfo("Key 2 pressed. Close gripper")
-                    # self.arm_client.SetGripper(0.0)
+                    self.gripper_cmd_callback(0.0)
 
             except:
                 time.sleep(0.1)
@@ -131,7 +130,7 @@ class HdzUserInterface:
 
         elif event == cv2.EVENT_MBUTTONDOWN:
             rospy.loginfo("Middle mouse button pressed")
-            self.arm_client.MoveTo(self.grasp_pose)
+            self.move_to_pose_callback(self.grasp_pose)
 
         elif event == cv2.EVENT_RBUTTONDOWN:
             rospy.loginfo("Right mouse button pressed")
