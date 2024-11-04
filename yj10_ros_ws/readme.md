@@ -66,18 +66,30 @@ roslaunch yj10_gazebo gazebo_moveit.launch
 
 ### Gazebo 抓取仿真
 
-启动 Grasp Model：  
+#### 启动 Grasp Model
 ```shell
-docker exec -it grasp_model_he workspace/run_grpc_server.sh
+docker run -it --rm --user ros --network=host --ipc=host --runtime=nvidia --gpus all grasp_model_with_code workspace/run_grpc_server.sh
 ```
 
+成功启动后应该会显示如下：
+```
+WARNING:root:Failed to import geometry msgs in rigid_transformations.py.
+WARNING:root:Failed to import ros dependencies in rigid_transforms.py
+WARNING:root:autolab_core not installed as catkin package, RigidTransform ros methods will be unavailable
+-> loaded checkpoint models/gsnet_epoch10.tar
+Server started, listening on 50051
+```
+
+#### 启动 Gazebo 和 grasp_model_client
+在两个终端中分别执行：
+
 ```shell
-# 在两个终端中分别执行：
 roslaunch yj10_gazebo gazebo_moveit.launch
 rosrun yj10_grasp_model_client grasp_model_client.py
 ```
 
-操作方法：  
+#### 操作方法
+
 1. 在 Grasp Model UI 窗口中按下键盘上的 “0” 将机械臂归位  
 2. 使用鼠标左键框选需要抓取的物体  
 3. 点击右键调用模型生成抓取位姿  
@@ -85,7 +97,7 @@ rosrun yj10_grasp_model_client grasp_model_client.py
 5. 按键盘上的 “1” 张开夹爪，“2” 闭合夹爪（未完成）
 6. 按下键盘上的 “0” 将机械臂归位  
 
-### 连接机械臂
+### 连接实体机械臂
 
 **这会将机械臂复位到初始位姿**，同时启动 ros controller 并发布 joint state 关节信息
 
