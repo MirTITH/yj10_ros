@@ -67,8 +67,10 @@ roslaunch yj10_gazebo gazebo_moveit.launch
 ### Gazebo 抓取仿真
 
 #### 启动 Grasp Model
+
+运行仓库根目录下的 `run_grasp_model_docker.sh`
 ```shell
-docker run -it --rm --user ros --network=host --ipc=host --runtime=nvidia --gpus all grasp_model_with_code workspace/run_grpc_server.sh
+../run_grasp_model_docker.sh
 ```
 
 成功启动后应该会显示如下：
